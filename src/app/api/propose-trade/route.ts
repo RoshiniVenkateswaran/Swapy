@@ -67,6 +67,18 @@ export async function POST(request: NextRequest) {
         updatedAt: Timestamp.now(),
       });
 
+      // Mark both items as pending
+      await Promise.all([
+        adminDb.collection('items').doc(item1Id).update({
+          status: 'pending',
+          pendingTradeId: tradeRef.id,
+        }),
+        adminDb.collection('items').doc(item2Id).update({
+          status: 'pending',
+          pendingTradeId: tradeRef.id,
+        }),
+      ]);
+
       console.log('✅ Trade proposal created:', tradeRef.id);
 
       return NextResponse.json({
@@ -127,6 +139,15 @@ export async function POST(request: NextRequest) {
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
+
+      // Mark all items in chain as pending
+      const itemUpdates = chainData.items.map((item: any) =>
+        adminDb.collection('items').doc(item.itemId).update({
+          status: 'pending',
+          pendingTradeId: tradeRef.id,
+        })
+      );
+      await Promise.all(itemUpdates);
 
       console.log('✅ Multi-hop proposal created:', tradeRef.id);
 

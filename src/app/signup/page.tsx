@@ -16,6 +16,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [error, setError] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -109,6 +111,8 @@ export default function SignupPage() {
         uid: user.uid,
         email: user.email,
         displayName: name,
+        phone: phone || '',
+        address: address || '',
         createdAt: Timestamp.now(),
       });
 
@@ -311,6 +315,36 @@ export default function SignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl glass focus:ring-2 focus:ring-primary focus:outline-none transition-all duration-300 text-gray-900 placeholder-gray-500"
                 placeholder="Confirm your password"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="phone" className="block text-sm font-semibold text-gray-900 mb-2">
+                Phone Number
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl glass focus:ring-2 focus:ring-primary focus:outline-none transition-all duration-300 text-gray-900 placeholder-gray-500"
+                placeholder="+1 (555) 123-4567"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="address" className="block text-sm font-semibold text-gray-900 mb-2">
+                Campus Address
+              </label>
+              <textarea
+                id="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                rows={2}
+                className="w-full px-4 py-3 rounded-xl glass focus:ring-2 focus:ring-primary focus:outline-none transition-all duration-300 text-gray-900 placeholder-gray-500 resize-none"
+                placeholder="Dorm/Building, Room Number"
                 required
               />
             </div>
