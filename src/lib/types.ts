@@ -22,6 +22,10 @@ export interface Item {
   createdAt: Timestamp;
   keywords?: string[];
   attributes?: Record<string, any>;
+  condition?: number;
+  ageValue?: number;
+  ageUnit?: 'years' | 'months';
+  brand?: string;
 }
 
 export interface Trade {
