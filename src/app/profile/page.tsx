@@ -5,8 +5,9 @@ import { useAuth } from '@/components/AuthProvider';
 import Navbar from '@/components/Navbar';
 import GlassCard from '@/components/ui/GlassCard';
 import PageTransition from '@/components/ui/PageTransition';
+import ActionButton from '@/components/ui/ActionButton';
 import { motion } from 'framer-motion';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 interface UserProfile {
@@ -21,6 +22,9 @@ export default function ProfilePage() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editedProfile, setEditedProfile] = useState<Partial<UserProfile>>({});
 
   useEffect(() => {
     if (user) {
@@ -64,6 +68,71 @@ export default function ProfilePage() {
       });
     } catch {
       return 'Unknown';
+    }
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditedProfile({
+      displayName: profile?.displayName || '',
+      phone: profile?.phone || '',
+      address: profile?.address || '',
+    });
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditedProfile({});
+  };
+
+  const handleSave = async () => {
+    if (!user || !profile) return;
+
+    // Validation
+    if (!editedProfile.displayName?.trim()) {
+      alert('Name cannot be empty');
+      return;
+    }
+    if (!editedProfile.phone?.trim()) {
+      alert('Phone number cannot be empty');
+      return;
+    }
+    if (!editedProfile.address?.trim()) {
+      alert('Campus address cannot be empty');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      console.log('💾 Saving profile updates...');
+
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        displayName: editedProfile.displayName.trim(),
+        phone: editedProfile.phone.trim(),
+        address: editedProfile.address.trim(),
+        updatedAt: new Date(),
+      });
+
+      // Update local state
+      setProfile({
+        ...profile,
+        displayName: editedProfile.displayName.trim(),
+        phone: editedProfile.phone.trim(),
+        address: editedProfile.address.trim(),
+      });
+
+      setIsEditing(false);
+      setEditedProfile({});
+      
+      console.log('✅ Profile updated successfully');
+      alert('Profile updated successfully! ✅');
+    } catch (error) {
+      console.error('❌ Error updating profile:', error);
+      alert('Failed to update profile. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -116,10 +185,22 @@ export default function ProfilePage() {
                 transition={{ delay: 0.2 }}
               >
                 <GlassCard className="p-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                    <span className="text-3xl">📋</span>
-                    Personal Information
-                  </h2>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                      <span className="text-3xl">📋</span>
+                      Personal Information
+                    </h2>
+                    {!isEditing && (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleEdit}
+                        className="px-4 py-2 bg-gradient-primary text-white rounded-lg font-semibold shadow-md hover:shadow-xl transition-all duration-300 flex items-center gap-2"
+                      >
+                        ✏️ Edit Profile
+                      </motion.button>
+                    )}
+                  </div>
 
                   <div className="space-y-6">
                     {/* Name */}
@@ -130,14 +211,24 @@ export default function ProfilePage() {
                           <p className="text-sm font-semibold text-gray-600 mb-1">
                             Full Name
                           </p>
-                          <p className="text-xl font-bold text-gray-900">
-                            {profile.displayName}
-                          </p>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedProfile.displayName || ''}
+                              onChange={(e) => setEditedProfile({ ...editedProfile, displayName: e.target.value })}
+                              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-lg font-semibold"
+                              placeholder="Enter your full name"
+                            />
+                          ) : (
+                            <p className="text-xl font-bold text-gray-900">
+                              {profile.displayName}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Email */}
+                    {/* Email (Not Editable) */}
                     <div className="bg-gradient-glow rounded-xl p-5">
                       <div className="flex items-start gap-4">
                         <div className="text-3xl">📧</div>
@@ -149,7 +240,7 @@ export default function ProfilePage() {
                             {profile.email}
                           </p>
                           <p className="text-xs text-gray-600 mt-1">
-                            ✓ Verified college email
+                            ✓ Verified college email {isEditing && '(cannot be changed)'}
                           </p>
                         </div>
                       </div>
@@ -163,9 +254,19 @@ export default function ProfilePage() {
                           <p className="text-sm font-semibold text-gray-600 mb-1">
                             Phone Number
                           </p>
-                          <p className="text-lg font-semibold text-gray-900">
-                            {profile.phone}
-                          </p>
+                          {isEditing ? (
+                            <input
+                              type="tel"
+                              value={editedProfile.phone || ''}
+                              onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
+                              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-lg font-semibold"
+                              placeholder="Enter your phone number"
+                            />
+                          ) : (
+                            <p className="text-lg font-semibold text-gray-900">
+                              {profile.phone}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-600 mt-1">
                             Visible to your trading partners
                           </p>
@@ -181,9 +282,19 @@ export default function ProfilePage() {
                           <p className="text-sm font-semibold text-gray-600 mb-1">
                             Campus Address
                           </p>
-                          <p className="text-lg font-semibold text-gray-900">
-                            {profile.address}
-                          </p>
+                          {isEditing ? (
+                            <textarea
+                              value={editedProfile.address || ''}
+                              onChange={(e) => setEditedProfile({ ...editedProfile, address: e.target.value })}
+                              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-lg font-semibold resize-none"
+                              placeholder="Enter your campus address"
+                              rows={2}
+                            />
+                          ) : (
+                            <p className="text-lg font-semibold text-gray-900">
+                              {profile.address}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-600 mt-1">
                             Shared when trades are completed
                           </p>
@@ -191,6 +302,33 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Save/Cancel Buttons */}
+                  {isEditing && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-4 mt-6 pt-6 border-t border-gray-200"
+                    >
+                      <ActionButton
+                        onClick={handleSave}
+                        loading={saving}
+                        disabled={saving}
+                        className="flex-1 bg-gradient-primary text-white"
+                      >
+                        💾 Save Changes
+                      </ActionButton>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleCancel}
+                        disabled={saving}
+                        className="flex-1 px-6 py-3 rounded-xl font-semibold bg-gray-200 hover:bg-gray-300 text-gray-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        ❌ Cancel
+                      </motion.button>
+                    </motion.div>
+                  )}
                 </GlassCard>
               </motion.div>
 
@@ -263,21 +401,6 @@ export default function ProfilePage() {
                 </GlassCard>
               </motion.div>
 
-              {/* Future: Edit Profile Button */}
-              {/* <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="text-center"
-              >
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-8 py-4 bg-gradient-primary text-white rounded-xl font-semibold shadow-xl glow-primary hover:shadow-2xl transition-all duration-300"
-                >
-                  ✏️ Edit Profile
-                </motion.button>
-              </motion.div> */}
             </div>
           ) : (
             <GlassCard className="text-center py-12">
