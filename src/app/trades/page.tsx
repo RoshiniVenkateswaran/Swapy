@@ -30,18 +30,37 @@ interface UserContact {
   address: string;
 }
 
+interface UserProfile {
+  userId: string;
+  displayName: string;
+  email: string;
+}
+
 interface Trade {
   tradeId: string;
+  type?: '1-to-1' | 'multi-hop';
   item1Id?: string;
   item2Id?: string;
   item1?: Item;
   item2?: Item;
+  chainData?: {
+    items: Item[];
+    userIds: string[];
+    chainLength: number;
+    chainFairnessScore: number;
+    reasoning?: string;
+  };
   status: string;
   createdAt: any;
   usersInvolved: string[];
   proposerId?: string;
+  acceptedBy?: string[]; // NEW: Track who has accepted
   user1Contact?: UserContact;
   user2Contact?: UserContact;
+  // User profiles for display
+  user1Profile?: UserProfile;
+  user2Profile?: UserProfile;
+  partnerProfile?: UserProfile; // The other user in the trade
 }
 
 export default function TradesPage() {
@@ -91,67 +110,114 @@ export default function TradesPage() {
       for (const tradeDoc of snapshot.docs) {
         const tradeData = { tradeId: tradeDoc.id, ...tradeDoc.data() } as Trade;
         
-        console.log('📦 Processing trade:', tradeData.tradeId, tradeData);
+        console.log('📦 Processing trade:', tradeData.tradeId, '| Type:', tradeData.type || '1-to-1');
 
-        // Fetch item details if we have item IDs
-        if (tradeData.item1Id) {
-          try {
-            const item1Doc = await getDoc(doc(db, 'items', tradeData.item1Id));
-            if (item1Doc.exists()) {
-              tradeData.item1 = { itemId: item1Doc.id, ...item1Doc.data() } as Item;
-              console.log('✅ Item 1 loaded:', tradeData.item1.name);
-            } else {
-              console.warn('⚠️ Item 1 not found:', tradeData.item1Id);
+        // Handle 1-to-1 trades
+        if (tradeData.type === '1-to-1' || (!tradeData.type && tradeData.item1Id)) {
+          // Fetch item details if we have item IDs
+          if (tradeData.item1Id) {
+            try {
+              const item1Doc = await getDoc(doc(db, 'items', tradeData.item1Id));
+              if (item1Doc.exists()) {
+                tradeData.item1 = { itemId: item1Doc.id, ...item1Doc.data() } as Item;
+                console.log('✅ Item 1 loaded:', tradeData.item1.name);
+              } else {
+                console.warn('⚠️ Item 1 not found:', tradeData.item1Id);
+              }
+            } catch (error) {
+              console.error('❌ Error loading item 1:', error);
             }
-          } catch (error) {
-            console.error('❌ Error loading item 1:', error);
           }
+
+          if (tradeData.item2Id) {
+            try {
+              const item2Doc = await getDoc(doc(db, 'items', tradeData.item2Id));
+              if (item2Doc.exists()) {
+                tradeData.item2 = { itemId: item2Doc.id, ...item2Doc.data() } as Item;
+                console.log('✅ Item 2 loaded:', tradeData.item2.name);
+              } else {
+                console.warn('⚠️ Item 2 not found:', tradeData.item2Id);
+              }
+            } catch (error) {
+              console.error('❌ Error loading item 2:', error);
+            }
+          }
+        } 
+        // Handle multi-hop trades
+        else if (tradeData.type === 'multi-hop' && tradeData.chainData) {
+          console.log('🔄 Multi-hop trade with', tradeData.chainData.items?.length || 0, 'items');
+          // chainData already contains item details, no need to fetch
         }
 
-        if (tradeData.item2Id) {
-          try {
-            const item2Doc = await getDoc(doc(db, 'items', tradeData.item2Id));
-            if (item2Doc.exists()) {
-              tradeData.item2 = { itemId: item2Doc.id, ...item2Doc.data() } as Item;
-              console.log('✅ Item 2 loaded:', tradeData.item2.name);
-            } else {
-              console.warn('⚠️ Item 2 not found:', tradeData.item2Id);
-            }
-          } catch (error) {
-            console.error('❌ Error loading item 2:', error);
-          }
-        }
-
-        // Fetch user contact details for completed trades
-        if (tradeData.status === 'completed' && tradeData.usersInvolved.length === 2) {
+        // Fetch user profiles for all trades (for display)
+        if (tradeData.usersInvolved.length >= 2) {
           try {
             const [userId1, userId2] = tradeData.usersInvolved;
             
+            // Fetch user 1 profile
             const user1Doc = await getDoc(doc(db, 'users', userId1));
             if (user1Doc.exists()) {
               const user1Data = user1Doc.data();
-              tradeData.user1Contact = {
-                displayName: user1Data.displayName || 'Unknown',
+              tradeData.user1Profile = {
+                userId: userId1,
+                displayName: user1Data.displayName || 'User 1',
                 email: user1Data.email || '',
-                phone: user1Data.phone || 'Not provided',
-                address: user1Data.address || 'Not provided',
               };
             }
 
+            // Fetch user 2 profile
             const user2Doc = await getDoc(doc(db, 'users', userId2));
             if (user2Doc.exists()) {
               const user2Data = user2Doc.data();
-              tradeData.user2Contact = {
-                displayName: user2Data.displayName || 'Unknown',
+              tradeData.user2Profile = {
+                userId: userId2,
+                displayName: user2Data.displayName || 'User 2',
                 email: user2Data.email || '',
-                phone: user2Data.phone || 'Not provided',
-                address: user2Data.address || 'Not provided',
               };
             }
 
-            console.log('✅ Contact details loaded for completed trade');
+            // Identify trading partner (the other user)
+            const partnerId = tradeData.usersInvolved.find(id => id !== user?.uid);
+            if (partnerId) {
+              const partnerDoc = await getDoc(doc(db, 'users', partnerId));
+              if (partnerDoc.exists()) {
+                const partnerData = partnerDoc.data();
+                tradeData.partnerProfile = {
+                  userId: partnerId,
+                  displayName: partnerData.displayName || 'User',
+                  email: partnerData.email || '',
+                };
+              }
+            }
+
+            console.log('✅ User profiles loaded');
+
+            // For completed trades, also fetch full contact details
+            if (tradeData.status === 'completed') {
+              if (user1Doc.exists()) {
+                const user1Data = user1Doc.data();
+                tradeData.user1Contact = {
+                  displayName: user1Data.displayName || 'Unknown',
+                  email: user1Data.email || '',
+                  phone: user1Data.phone || 'Not provided',
+                  address: user1Data.address || 'Not provided',
+                };
+              }
+
+              if (user2Doc.exists()) {
+                const user2Data = user2Doc.data();
+                tradeData.user2Contact = {
+                  displayName: user2Data.displayName || 'Unknown',
+                  email: user2Data.email || '',
+                  phone: user2Data.phone || 'Not provided',
+                  address: user2Data.address || 'Not provided',
+                };
+              }
+
+              console.log('✅ Contact details loaded for completed trade');
+            }
           } catch (error) {
-            console.error('❌ Error loading contact details:', error);
+            console.error('❌ Error loading user details:', error);
           }
         }
 
@@ -214,7 +280,7 @@ export default function TradesPage() {
       // Close action modal
       setShowActionModal(false);
       
-      // Show success result
+      // Show success result (both completed and partial acceptance are success)
       setResultSuccess(true);
       setResultMessage(data.message);
       setShowResultModal(true);
@@ -259,6 +325,12 @@ export default function TradesPage() {
   const TradeCard = ({ trade, index }: { trade: Trade; index: number }) => {
     const badge = getStatusBadge(trade.status);
     const isUserItem1 = trade.item1?.userId === user?.uid;
+    const isMultiHop = trade.type === 'multi-hop';
+
+    // Determine what user gives and gets
+    const userGivesItem = isUserItem1 ? trade.item1 : trade.item2;
+    const userGetsItem = isUserItem1 ? trade.item2 : trade.item1;
+    const tradingPartner = trade.partnerProfile;
 
     return (
       <motion.div
@@ -267,105 +339,391 @@ export default function TradesPage() {
         transition={{ delay: index * 0.1 }}
       >
         <GlassCard hover className="group">
-          {/* Status Badge */}
-          <div className="flex justify-between items-center mb-4">
-            <GradientBadge variant={badge.variant}>
-              {badge.icon} {badge.label}
-            </GradientBadge>
-            <span className="text-sm text-gray-600">
+          {/* Header with Status & Partner */}
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <GradientBadge variant={badge.variant}>
+                  {badge.icon} {badge.label}
+                </GradientBadge>
+                {isMultiHop && (
+                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                    🔄 Multi-hop
+                  </span>
+                )}
+              </div>
+              {/* Trading Partner Info */}
+              {tradingPartner && !isMultiHop && (
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center text-sm font-bold text-white shadow-md">
+                    {tradingPartner.displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {tradingPartner.displayName}
+                    </p>
+                    <p className="text-xs text-gray-600">Trading partner</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-gray-500">
               {trade.createdAt?.toDate().toLocaleDateString()}
             </span>
           </div>
 
           {/* Trade Items */}
-          <div className="space-y-4 mb-4">
-            {/* Your Item */}
-            <div className="space-y-2">
-              <p className="text-xs text-gray-600 font-semibold">
-                {isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
-              </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
-                {trade.item1?.imageUrl ? (
-                  <Image
-                    src={trade.item1.imageUrl}
-                    alt={trade.item1?.name || 'Item'}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
-                    📦
-                  </div>
-                )}
+          {isMultiHop && trade.chainData ? (
+            // Multi-hop Chain Display - Clear YOU GIVE vs YOU GET
+            <div className="mb-4">
+              {/* Chain Header */}
+              <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl p-4 mb-4">
+                <div className="text-center">
+                  <div className="text-3xl mb-2">🔄</div>
+                  <h3 className="text-lg font-bold text-purple-900 mb-1">
+                    {trade.chainData.chainLength}-Way Trade Chain
+                  </h3>
+                  {trade.chainData.chainFairnessScore && (
+                    <p className="text-sm text-purple-700 font-semibold">
+                      Chain Fairness: {trade.chainData.chainFairnessScore}%
+                    </p>
+                  )}
+                  <p className="text-xs text-purple-600 mt-2">
+                    Everyone gets what they want!
+                  </p>
+                </div>
               </div>
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item1?.name || 'Unknown Item'}
-              </p>
-              <p className="text-xs text-gray-700">
-                ${trade.item1?.estimatedValue || 0}
-              </p>
-            </div>
+              
+              {/* Find user's item and what they get */}
+              {(() => {
+                const userItemIndex = trade.chainData.items.findIndex(item => item.userId === user?.uid);
+                if (userItemIndex === -1) return null;
+                
+                const userGivesItem = trade.chainData.items[userItemIndex];
+                const userGetsItemIndex = (userItemIndex + 1) % trade.chainData.items.length;
+                const userGetsItem = trade.chainData.items[userGetsItemIndex];
+                
+                return (
+                  <>
+                    {/* YOU GIVE Section */}
+                    <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 mb-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">
+                          ↑
+                        </div>
+                        <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
+                          You Give
+                        </h3>
+                      </div>
+                      <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                        <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                          {userGivesItem.imageUrl ? (
+                            <Image
+                              src={userGivesItem.imageUrl}
+                              alt={userGivesItem.name || 'Item'}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+                              📦
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-bold text-gray-900 truncate">
+                            {userGivesItem.name || 'Unknown Item'}
+                          </p>
+                          <p className="text-xs text-gray-600 mb-1">
+                            {userGivesItem.category || 'N/A'}
+                          </p>
+                          <p className="text-sm font-semibold text-red-600">
+                            ${userGivesItem.estimatedValue || 0}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-            {/* Arrow */}
-            <div className="flex justify-center">
-              <motion.div
-                animate={{ y: [0, 5, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="text-3xl text-primary"
-              >
-                ⇅
-              </motion.div>
-            </div>
+                    {/* Swap Icon */}
+                    <div className="flex justify-center -my-5 relative z-10">
+                      <motion.div
+                        animate={{ rotate: [0, 180, 360] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                        className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg"
+                      >
+                        <span className="text-white text-2xl">🔄</span>
+                      </motion.div>
+                    </div>
 
-            {/* Their Item */}
-            <div className="space-y-2">
-              <p className="text-xs text-gray-600 font-semibold">
-                {!isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
-              </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
-                {trade.item2?.imageUrl ? (
-                  <Image
-                    src={trade.item2.imageUrl}
-                    alt={trade.item2?.name || 'Item'}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
-                    📦
+                    {/* YOU GET Section */}
+                    <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 mt-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">
+                          ↓
+                        </div>
+                        <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
+                          You Get
+                        </h3>
+                      </div>
+                      <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                        <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                          {userGetsItem.imageUrl ? (
+                            <Image
+                              src={userGetsItem.imageUrl}
+                              alt={userGetsItem.name || 'Item'}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+                              📦
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-bold text-gray-900 truncate">
+                            {userGetsItem.name || 'Unknown Item'}
+                          </p>
+                          <p className="text-xs text-gray-600 mb-1">
+                            {userGetsItem.category || 'N/A'}
+                          </p>
+                          <p className="text-sm font-semibold text-green-600">
+                            ${userGetsItem.estimatedValue || 0}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Other Participants Info */}
+                    <div className="mt-4 bg-purple-50 border border-purple-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-purple-900 mb-2 text-center">
+                        👥 Other {trade.chainData.chainLength - 1} Participant{trade.chainData.chainLength > 2 ? 's' : ''}
+                      </p>
+                      <div className="space-y-2">
+                        {trade.chainData.items
+                          .filter((_, idx) => idx !== userItemIndex)
+                          .map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs text-gray-700 bg-white rounded-lg p-2">
+                              <div className="w-6 h-6 rounded-full bg-purple-200 flex items-center justify-center text-purple-700 font-bold text-xs">
+                                {idx + 1}
+                              </div>
+                              <span className="flex-1 truncate">
+                                {item.name} (${item.estimatedValue})
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                      <p className="text-xs text-purple-600 text-center mt-2">
+                        All must accept for trade to complete
+                      </p>
+                    </div>
+
+                    {/* Acceptance Status (if user has accepted) */}
+                    {trade.acceptedBy && trade.acceptedBy.includes(user?.uid || '') && trade.status === 'pending' && (
+                      <div className="mt-3 bg-blue-50 border-2 border-blue-300 rounded-xl p-4">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <span className="text-2xl">⏳</span>
+                          <p className="text-sm font-bold text-blue-900">
+                            Waiting for Others
+                          </p>
+                        </div>
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-700">Accepted:</span>
+                            <span className="font-bold text-green-600">
+                              {trade.acceptedBy.length} / {trade.usersInvolved.length}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${(trade.acceptedBy.length / trade.usersInvolved.length) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-blue-700 text-center">
+                          ✓ You've accepted! Waiting for {trade.usersInvolved.length - trade.acceptedBy.length} more user{trade.usersInvolved.length - trade.acceptedBy.length > 1 ? 's' : ''}.
+                        </p>
+                        <p className="text-xs text-gray-600 text-center mt-1">
+                          Contact details will be shared when everyone accepts
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            // 1-to-1 Trade Display - Clear "You Give" vs "You Get"
+            <div className="mb-4">
+              {/* Swap Visual Container */}
+              <div className="relative">
+                {/* YOU GIVE Section */}
+                <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 mb-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">
+                      ↑
+                    </div>
+                    <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
+                      You Give
+                    </h3>
                   </div>
-                )}
+                  <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                      {userGivesItem?.imageUrl ? (
+                        <Image
+                          src={userGivesItem.imageUrl}
+                          alt={userGivesItem.name || 'Item'}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+                          📦
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-bold text-gray-900 truncate">
+                        {userGivesItem?.name || 'Unknown Item'}
+                      </p>
+                      <p className="text-xs text-gray-600 mb-1">
+                        {userGivesItem?.category || 'N/A'}
+                      </p>
+                      <p className="text-sm font-semibold text-red-600">
+                        ${userGivesItem?.estimatedValue || 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Swap Icon */}
+                <div className="flex justify-center -my-5 relative z-10">
+                  <motion.div
+                    animate={{ rotate: [0, 180, 360] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg"
+                  >
+                    <span className="text-white text-2xl">⇄</span>
+                  </motion.div>
+                </div>
+
+                {/* YOU GET Section */}
+                <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 mt-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">
+                      ↓
+                    </div>
+                    <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
+                      You Get
+                    </h3>
+                  </div>
+                  <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                      {userGetsItem?.imageUrl ? (
+                        <Image
+                          src={userGetsItem.imageUrl}
+                          alt={userGetsItem.name || 'Item'}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+                          📦
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-bold text-gray-900 truncate">
+                        {userGetsItem?.name || 'Unknown Item'}
+                      </p>
+                      <p className="text-xs text-gray-600 mb-1">
+                        {userGetsItem?.category || 'N/A'}
+                      </p>
+                      <p className="text-sm font-semibold text-green-600">
+                        ${userGetsItem?.estimatedValue || 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item2?.name || 'Unknown Item'}
-              </p>
-              <p className="text-xs text-gray-700">
-                ${trade.item2?.estimatedValue || 0}
-              </p>
+
+              {/* Value Comparison */}
+              {userGivesItem && userGetsItem && (
+                <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Value Difference:</span>
+                    <span className={`font-bold ${
+                      Math.abs((userGivesItem.estimatedValue || 0) - (userGetsItem.estimatedValue || 0)) <= 5
+                        ? 'text-green-600'
+                        : 'text-orange-600'
+                    }`}>
+                      ${Math.abs((userGivesItem.estimatedValue || 0) - (userGetsItem.estimatedValue || 0))}
+                      {Math.abs((userGivesItem.estimatedValue || 0) - (userGetsItem.estimatedValue || 0)) <= 5 && ' ✓ Fair!'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Actions */}
           {trade.status === 'pending' && (
-            <div className="flex gap-3">
-              <ActionButton
-                onClick={() => handleAcceptTrade(trade)}
-                loading={processingTradeId === trade.tradeId}
-                disabled={processingTradeId !== null}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-              >
-                ✅ Accept
-              </ActionButton>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleDeclineTrade(trade)}
-                disabled={processingTradeId !== null}
-                className="flex-1 px-4 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ❌ Decline
-              </motion.button>
-            </div>
+            <>
+              {/* Check if user has already accepted (for both 1-to-1 and multi-hop) */}
+              {trade.acceptedBy?.includes(user?.uid || '') ? (
+                // User already accepted - show waiting state only
+                <div className="bg-gradient-to-r from-blue-100 to-green-100 border-2 border-blue-300 rounded-xl p-4 text-center">
+                  <div className="text-3xl mb-2">⏳</div>
+                  <p className="text-sm font-bold text-blue-900 mb-1">
+                    You've Accepted This Trade
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Waiting for {trade.usersInvolved.length - (trade.acceptedBy?.length || 0)} other user{(trade.usersInvolved.length - (trade.acceptedBy?.length || 0)) > 1 ? 's' : ''} to accept
+                  </p>
+                  {/* Show acceptance progress for all trades */}
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-700">Accepted:</span>
+                      <span className="font-bold text-green-600">
+                        {trade.acceptedBy?.length || 0} / {trade.usersInvolved.length}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${((trade.acceptedBy?.length || 0) / trade.usersInvolved.length) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // User hasn't accepted yet - show action buttons
+                <div className="flex gap-3">
+                  <ActionButton
+                    onClick={() => handleAcceptTrade(trade)}
+                    loading={processingTradeId === trade.tradeId}
+                    disabled={processingTradeId !== null}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    ✅ Accept
+                  </ActionButton>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleDeclineTrade(trade)}
+                    disabled={processingTradeId !== null}
+                    className="flex-1 px-4 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    ❌ Decline
+                  </motion.button>
+                </div>
+              )}
+            </>
           )}
           
           {trade.status === 'declined' && (
