@@ -819,7 +819,7 @@ export default function MatchesPage() {
         <TradeResultModal
           isOpen={showResultModal}
           onClose={() => setShowResultModal(false)}
-          type={resultType}
+          success={resultType === 'success'}
           message={resultMessage}
         />
       </div>

@@ -54,6 +54,7 @@ interface Trade {
   createdAt: any;
   usersInvolved: string[];
   proposerId?: string;
+  acceptedBy?: string[]; // NEW: Track who has accepted
   user1Contact?: UserContact;
   user2Contact?: UserContact;
   // User profiles for display
@@ -279,7 +280,7 @@ export default function TradesPage() {
       // Close action modal
       setShowActionModal(false);
       
-      // Show success result
+      // Show success result (both completed and partial acceptance are success)
       setResultSuccess(true);
       setResultMessage(data.message);
       setShowResultModal(true);
@@ -373,65 +374,186 @@ export default function TradesPage() {
 
           {/* Trade Items */}
           {isMultiHop && trade.chainData ? (
-            // Multi-hop Chain Display
+            // Multi-hop Chain Display - Clear YOU GIVE vs YOU GET
             <div className="mb-4">
-              <div className="bg-purple-50 rounded-xl p-3 mb-3">
-                <p className="text-xs text-purple-700 font-semibold text-center">
-                  {trade.chainData.chainLength}-Way Trade Chain
+              {/* Chain Header */}
+              <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-2xl p-4 mb-4">
+                <div className="text-center">
+                  <div className="text-3xl mb-2">🔄</div>
+                  <h3 className="text-lg font-bold text-purple-900 mb-1">
+                    {trade.chainData.chainLength}-Way Trade Chain
+                  </h3>
                   {trade.chainData.chainFairnessScore && (
-                    <span className="ml-2">| Fairness: {trade.chainData.chainFairnessScore}%</span>
+                    <p className="text-sm text-purple-700 font-semibold">
+                      Chain Fairness: {trade.chainData.chainFairnessScore}%
+                    </p>
                   )}
-                </p>
+                  <p className="text-xs text-purple-600 mt-2">
+                    Everyone gets what they want!
+                  </p>
+                </div>
               </div>
               
-              {/* Chain Items */}
-              <div className="space-y-3">
-                {trade.chainData.items?.map((item, idx) => {
-                  const isUserItem = item.userId === user?.uid;
-                  return (
-                    <div key={idx} className="space-y-2">
-                      <p className="text-xs text-gray-600 font-semibold">
-                        {isUserItem ? '🫵 Your Item' : `👤 User ${idx + 1}`}
-                      </p>
-                      <div className="flex gap-3 bg-white/50 rounded-xl p-2">
-                        <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0">
-                          {item.imageUrl ? (
+              {/* Find user's item and what they get */}
+              {(() => {
+                const userItemIndex = trade.chainData.items.findIndex(item => item.userId === user?.uid);
+                if (userItemIndex === -1) return null;
+                
+                const userGivesItem = trade.chainData.items[userItemIndex];
+                const userGetsItemIndex = (userItemIndex + 1) % trade.chainData.items.length;
+                const userGetsItem = trade.chainData.items[userGetsItemIndex];
+                
+                return (
+                  <>
+                    {/* YOU GIVE Section */}
+                    <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 mb-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">
+                          ↑
+                        </div>
+                        <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
+                          You Give
+                        </h3>
+                      </div>
+                      <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                        <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                          {userGivesItem.imageUrl ? (
                             <Image
-                              src={item.imageUrl}
-                              alt={item.name || 'Item'}
+                              src={userGivesItem.imageUrl}
+                              alt={userGivesItem.name || 'Item'}
                               fill
                               className="object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl">
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
                               📦
                             </div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {item.name || 'Unknown Item'}
+                          <p className="text-base font-bold text-gray-900 truncate">
+                            {userGivesItem.name || 'Unknown Item'}
                           </p>
-                          <p className="text-xs text-gray-600">
-                            {item.category || 'N/A'}
+                          <p className="text-xs text-gray-600 mb-1">
+                            {userGivesItem.category || 'N/A'}
                           </p>
-                          <p className="text-xs text-gray-700 font-medium">
-                            ${item.estimatedValue || 0}
+                          <p className="text-sm font-semibold text-red-600">
+                            ${userGivesItem.estimatedValue || 0}
                           </p>
                         </div>
                       </div>
-                      {idx < (trade.chainData?.items?.length || 0) - 1 && (
-                        <div className="flex justify-center">
-                          <div className="text-xl text-purple-500">↓</div>
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
-                <div className="flex justify-center">
-                  <div className="text-xl text-green-500">↺</div>
-                </div>
-              </div>
+
+                    {/* Swap Icon */}
+                    <div className="flex justify-center -my-5 relative z-10">
+                      <motion.div
+                        animate={{ rotate: [0, 180, 360] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                        className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg"
+                      >
+                        <span className="text-white text-2xl">🔄</span>
+                      </motion.div>
+                    </div>
+
+                    {/* YOU GET Section */}
+                    <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 mt-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">
+                          ↓
+                        </div>
+                        <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
+                          You Get
+                        </h3>
+                      </div>
+                      <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                        <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                          {userGetsItem.imageUrl ? (
+                            <Image
+                              src={userGetsItem.imageUrl}
+                              alt={userGetsItem.name || 'Item'}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+                              📦
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-bold text-gray-900 truncate">
+                            {userGetsItem.name || 'Unknown Item'}
+                          </p>
+                          <p className="text-xs text-gray-600 mb-1">
+                            {userGetsItem.category || 'N/A'}
+                          </p>
+                          <p className="text-sm font-semibold text-green-600">
+                            ${userGetsItem.estimatedValue || 0}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Other Participants Info */}
+                    <div className="mt-4 bg-purple-50 border border-purple-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-purple-900 mb-2 text-center">
+                        👥 Other {trade.chainData.chainLength - 1} Participant{trade.chainData.chainLength > 2 ? 's' : ''}
+                      </p>
+                      <div className="space-y-2">
+                        {trade.chainData.items
+                          .filter((_, idx) => idx !== userItemIndex)
+                          .map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs text-gray-700 bg-white rounded-lg p-2">
+                              <div className="w-6 h-6 rounded-full bg-purple-200 flex items-center justify-center text-purple-700 font-bold text-xs">
+                                {idx + 1}
+                              </div>
+                              <span className="flex-1 truncate">
+                                {item.name} (${item.estimatedValue})
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                      <p className="text-xs text-purple-600 text-center mt-2">
+                        All must accept for trade to complete
+                      </p>
+                    </div>
+
+                    {/* Acceptance Status (if user has accepted) */}
+                    {trade.acceptedBy && trade.acceptedBy.includes(user?.uid || '') && trade.status === 'pending' && (
+                      <div className="mt-3 bg-blue-50 border-2 border-blue-300 rounded-xl p-4">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <span className="text-2xl">⏳</span>
+                          <p className="text-sm font-bold text-blue-900">
+                            Waiting for Others
+                          </p>
+                        </div>
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-700">Accepted:</span>
+                            <span className="font-bold text-green-600">
+                              {trade.acceptedBy.length} / {trade.usersInvolved.length}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${(trade.acceptedBy.length / trade.usersInvolved.length) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-blue-700 text-center">
+                          ✓ You've accepted! Waiting for {trade.usersInvolved.length - trade.acceptedBy.length} more user{trade.usersInvolved.length - trade.acceptedBy.length > 1 ? 's' : ''}.
+                        </p>
+                        <p className="text-xs text-gray-600 text-center mt-1">
+                          Contact details will be shared when everyone accepts
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ) : (
             // 1-to-1 Trade Display - Clear "You Give" vs "You Get"
@@ -549,25 +671,42 @@ export default function TradesPage() {
 
           {/* Actions */}
           {trade.status === 'pending' && (
-            <div className="flex gap-3">
-              <ActionButton
-                onClick={() => handleAcceptTrade(trade)}
-                loading={processingTradeId === trade.tradeId}
-                disabled={processingTradeId !== null}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-              >
-                ✅ Accept
-              </ActionButton>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleDeclineTrade(trade)}
-                disabled={processingTradeId !== null}
-                className="flex-1 px-4 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ❌ Decline
-              </motion.button>
-            </div>
+            <>
+              {/* Check if user has already accepted (for multi-hop) */}
+              {trade.type === 'multi-hop' && trade.acceptedBy?.includes(user?.uid || '') ? (
+                // User already accepted - show waiting state only
+                <div className="bg-gradient-to-r from-blue-100 to-green-100 border-2 border-blue-300 rounded-xl p-4 text-center">
+                  <div className="text-3xl mb-2">⏳</div>
+                  <p className="text-sm font-bold text-blue-900 mb-1">
+                    You've Accepted This Trade
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Waiting for {trade.usersInvolved.length - (trade.acceptedBy?.length || 0)} other user{(trade.usersInvolved.length - (trade.acceptedBy?.length || 0)) > 1 ? 's' : ''} to accept
+                  </p>
+                </div>
+              ) : (
+                // User hasn't accepted yet - show action buttons
+                <div className="flex gap-3">
+                  <ActionButton
+                    onClick={() => handleAcceptTrade(trade)}
+                    loading={processingTradeId === trade.tradeId}
+                    disabled={processingTradeId !== null}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    ✅ Accept
+                  </ActionButton>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleDeclineTrade(trade)}
+                    disabled={processingTradeId !== null}
+                    className="flex-1 px-4 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    ❌ Decline
+                  </motion.button>
+                </div>
+              )}
+            </>
           )}
           
           {trade.status === 'declined' && (
@@ -849,7 +988,7 @@ export default function TradesPage() {
         <TradeResultModal
           isOpen={showResultModal}
           onClose={() => setShowResultModal(false)}
-          type={resultSuccess ? 'success' : 'error'}
+          success={resultSuccess}
           message={resultMessage}
         />
       </div>
