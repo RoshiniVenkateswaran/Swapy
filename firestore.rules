@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Items collection
+    match /items/{itemId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Trades collection
+    match /trades/{tradeId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.usersInvolved;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid in resource.data.usersInvolved;
+    }
+    
+    // Stats collection (read-only for users)
+    match /stats/{category} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only backend can write
+    }
+  }
+}
+

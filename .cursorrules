@@ -1,0 +1,61 @@
+# CampusBarter AI Development Rules
+
+## Project Context
+This is a campus-exclusive barter platform using Next.js 14, Firebase, and AI.
+
+## Code Style
+- Use TypeScript for all new files
+- Use functional components with hooks
+- Prefer async/await over promises
+- Use TailwindCSS for styling
+- Follow Next.js 14 App Router conventions
+
+## File Organization
+- Pages in `src/app/`
+- Components in `src/components/`
+- Utilities in `src/lib/`
+- Types in `src/lib/types.ts`
+- Firebase in `src/lib/firebase.ts`
+
+## Naming Conventions
+- Components: PascalCase (e.g., ItemCard.tsx)
+- Utilities: camelCase (e.g., calculateScore)
+- Files: kebab-case for routes
+- Types: PascalCase interfaces
+
+## Firebase Rules
+- Always check authentication before database operations
+- Use Firestore transactions for multi-document updates
+- Implement proper security rules
+- Use Firebase Storage for images only
+
+## AI Integration
+- AI is for analysis ONLY, not decision-making
+- User always has final say
+- No autonomous trading
+- Transparent AI scoring
+
+## Best Practices
+- Handle loading states
+- Provide user feedback
+- Error handling with try-catch
+- Validate inputs
+- Use TypeScript types
+- Add comments for complex logic
+- Optimize Firestore queries
+- Use Next.js Image for optimization
+
+## Security
+- Never expose API keys in client code
+- Validate email domains
+- Check user ownership before edits
+- Sanitize user inputs
+- Use HTTPS only
+
+## Performance
+- Lazy load images
+- Debounce search/filter
+- Cache match scores
+- Paginate large lists
+- Optimize Firestore indexes
+
