@@ -10,6 +10,10 @@ import { FieldValue } from 'firebase-admin/firestore';
  * - Multi-hop: Add to acceptedBy, complete when all accept
  */
 
+// Force dynamic rendering - don't pre-render during build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     const { tradeId, userId } = await request.json();

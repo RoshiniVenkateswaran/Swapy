@@ -11,6 +11,10 @@ import { adminDb } from '@/lib/firebase-admin';
  * 4. Returns ranked 1-to-1 matches
  */
 
+// Force dynamic rendering - don't pre-render during build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 interface Item {
   itemId: string;
   userId: string;

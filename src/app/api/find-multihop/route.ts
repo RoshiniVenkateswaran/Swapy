@@ -13,6 +13,10 @@ import { adminDb } from '@/lib/firebase-admin';
  * 4. Return valid multi-hop suggestions
  */
 
+// Force dynamic rendering - don't pre-render during build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 interface Item {
   itemId: string;
   userId: string;

@@ -11,6 +11,10 @@ import { FieldValue } from 'firebase-admin/firestore';
  * - Works for both 1-to-1 and multi-hop
  */
 
+// Force dynamic rendering - don't pre-render during build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     const { tradeId, userId } = await request.json();
