@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '@/components/ui/GlassCard';
 import ActionButton from '@/components/ui/ActionButton';
 import PageTransition from '@/components/ui/PageTransition';
+import TradeProposalModal from '@/components/ui/TradeProposalModal';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
@@ -58,6 +59,13 @@ export default function MatchesPage() {
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [loadingMultiHop, setLoadingMultiHop] = useState(false);
   const [viewMode, setViewMode] = useState<'1-to-1' | 'multi-hop'>('1-to-1');
+  
+  // Modal state
+  const [showProposalModal, setShowProposalModal] = useState(false);
+  const [proposalType, setProposalType] = useState<'1-to-1' | 'multi-hop'>('1-to-1');
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [selectedChain, setSelectedChain] = useState<TradeChain | null>(null);
+  const [proposing, setProposing] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -155,74 +163,84 @@ export default function MatchesPage() {
     }
   };
 
-  const handleProposeTrade = async (match: Match) => {
-    if (!user || !selectedItem) return;
+  const handleProposeTrade = (match: Match) => {
+    setProposalType('1-to-1');
+    setSelectedMatch(match);
+    setShowProposalModal(true);
+  };
 
-    const confirmed = confirm(
-      `Propose trade:\nYour "${selectedItem.name}" for their "${match.item2.name}"?\n\nFairness Score: ${match.fairTradeScore}%`
-    );
+  const handleProposeChain = (chain: TradeChain) => {
+    setProposalType('multi-hop');
+    setSelectedChain(chain);
+    setShowProposalModal(true);
+  };
 
-    if (!confirmed) return;
+  const confirmProposal = async () => {
+    if (!user) return;
+
+    setProposing(true);
 
     try {
-      const response = await fetch('/api/propose-trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: '1-to-1',
-          proposerId: user.uid,
-          item1Id: selectedItem.itemId,
-          item2Id: match.item2.itemId,
-        }),
-      });
+      if (proposalType === '1-to-1' && selectedMatch && selectedItem) {
+        const response = await fetch('/api/propose-trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: '1-to-1',
+            proposerId: user.uid,
+            item1Id: selectedItem.itemId,
+            item2Id: selectedMatch.item2.itemId,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to propose trade');
+        if (!response.ok) {
+          throw new Error('Failed to propose trade');
+        }
+
+        const data = await response.json();
+        
+        // Close modal
+        setShowProposalModal(false);
+        
+        // Show success with alert (can be replaced with toast later)
+        setTimeout(() => {
+          alert(`✅ ${data.message}`);
+        }, 300);
+        
+        // Refresh matches
+        handleSelectItem(selectedItem);
+        
+      } else if (proposalType === 'multi-hop' && selectedChain) {
+        const response = await fetch('/api/propose-trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'multi-hop',
+            proposerId: user.uid,
+            chainData: selectedChain,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to propose chain trade');
+        }
+
+        const data = await response.json();
+        
+        // Close modal
+        setShowProposalModal(false);
+        
+        // Show success
+        setTimeout(() => {
+          alert(`✅ ${data.message}`);
+          router.push('/trades');
+        }, 300);
       }
-
-      const data = await response.json();
-      alert(`✅ ${data.message}`);
-      
-      // Refresh matches to update status
-      handleSelectItem(selectedItem);
     } catch (error) {
       console.error('Error proposing trade:', error);
       alert('❌ Failed to propose trade. Please try again.');
-    }
-  };
-
-  const handleProposeChain = async (chain: TradeChain) => {
-    if (!user) return;
-
-    const confirmed = confirm(
-      `Propose ${chain.chainLength}-way trade chain?\n\nFairness Score: ${chain.chainFairnessScore}%\n\nAll ${chain.chainLength} users will be notified.`
-    );
-
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch('/api/propose-trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'multi-hop',
-          proposerId: user.uid,
-          chainData: chain,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to propose chain trade');
-      }
-
-      const data = await response.json();
-      alert(`✅ ${data.message}`);
-      
-      // Could refresh or navigate to trades page
-      router.push('/trades');
-    } catch (error) {
-      console.error('Error proposing chain:', error);
-      alert('❌ Failed to propose chain trade. Please try again.');
+    } finally {
+      setProposing(false);
     }
   };
 
@@ -725,6 +743,50 @@ export default function MatchesPage() {
             </div>
           </div>
         </main>
+
+        {/* Trade Proposal Modal */}
+        <TradeProposalModal
+          isOpen={showProposalModal}
+          onClose={() => setShowProposalModal(false)}
+          onConfirm={confirmProposal}
+          type={proposalType}
+          yourItem={
+            selectedItem
+              ? {
+                  name: selectedItem.name,
+                  imageUrl: selectedItem.imageUrl,
+                  estimatedValue: selectedItem.estimatedValue,
+                  category: selectedItem.category,
+                }
+              : undefined
+          }
+          theirItem={
+            selectedMatch
+              ? {
+                  name: selectedMatch.item2.name,
+                  imageUrl: selectedMatch.item2.imageUrl,
+                  estimatedValue: selectedMatch.item2.estimatedValue,
+                  category: selectedMatch.item2.category,
+                }
+              : undefined
+          }
+          chainData={
+            selectedChain
+              ? {
+                  items: selectedChain.items.map((item) => ({
+                    name: item.name,
+                    imageUrl: item.imageUrl,
+                    estimatedValue: item.estimatedValue,
+                    category: item.category,
+                  })),
+                  chainLength: selectedChain.chainLength,
+                  chainFairnessScore: selectedChain.chainFairnessScore,
+                }
+              : undefined
+          }
+          fairnessScore={selectedMatch?.fairTradeScore}
+          loading={proposing}
+        />
       </div>
     </PageTransition>
   );
