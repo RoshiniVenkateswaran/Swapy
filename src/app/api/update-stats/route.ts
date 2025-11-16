@@ -1,23 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
     const { category, desiredCategories } = await request.json();
 
     // Update supply count for the item's category
-    const supplyCategoryRef = doc(db, 'stats', category);
-    const supplyDoc = await getDoc(supplyCategoryRef);
+    const supplyCategoryRef = adminDb.collection('stats').doc(category);
+    const supplyDoc = await supplyCategoryRef.get();
 
-    if (supplyDoc.exists()) {
-      await setDoc(
-        supplyCategoryRef,
-        { supplyCount: increment(1) },
+    if (supplyDoc.exists) {
+      await supplyCategoryRef.set(
+        { supplyCount: FieldValue.increment(1) },
         { merge: true }
       );
     } else {
-      await setDoc(supplyCategoryRef, {
+      await supplyCategoryRef.set({
         category,
         supplyCount: 1,
         demandCount: 0,
@@ -26,17 +29,16 @@ export async function POST(request: NextRequest) {
 
     // Update demand count for desired categories
     for (const desiredCategory of desiredCategories) {
-      const demandCategoryRef = doc(db, 'stats', desiredCategory);
-      const demandDoc = await getDoc(demandCategoryRef);
+      const demandCategoryRef = adminDb.collection('stats').doc(desiredCategory);
+      const demandDoc = await demandCategoryRef.get();
 
-      if (demandDoc.exists()) {
-        await setDoc(
-          demandCategoryRef,
-          { demandCount: increment(1) },
+      if (demandDoc.exists) {
+        await demandCategoryRef.set(
+          { demandCount: FieldValue.increment(1) },
           { merge: true }
         );
       } else {
-        await setDoc(demandCategoryRef, {
+        await demandCategoryRef.set({
           category: desiredCategory,
           supplyCount: 0,
           demandCount: 1,
