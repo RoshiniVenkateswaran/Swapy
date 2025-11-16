@@ -112,19 +112,25 @@ export default function TradesPage() {
               <p className="text-xs text-gray-600 font-semibold">
                 {isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
               </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden">
-                <Image
-                  src={trade.item1?.imageUrl || '/placeholder.png'}
-                  alt={trade.item1?.name || 'Item'}
-                  fill
-                  className="object-cover"
-                />
+              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
+                {trade.item1?.imageUrl ? (
+                  <Image
+                    src={trade.item1.imageUrl}
+                    alt={trade.item1?.name || 'Item'}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
+                    📦
+                  </div>
+                )}
               </div>
               <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item1?.name}
+                {trade.item1?.name || 'Unknown Item'}
               </p>
               <p className="text-xs text-gray-700">
-                ${trade.item1?.estimatedValue}
+                ${trade.item1?.estimatedValue || 0}
               </p>
             </div>
 
@@ -144,19 +150,25 @@ export default function TradesPage() {
               <p className="text-xs text-gray-600 font-semibold">
                 {!isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
               </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden">
-                <Image
-                  src={trade.item2?.imageUrl || '/placeholder.png'}
-                  alt={trade.item2?.name || 'Item'}
-                  fill
-                  className="object-cover"
-                />
+              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
+                {trade.item2?.imageUrl ? (
+                  <Image
+                    src={trade.item2.imageUrl}
+                    alt={trade.item2?.name || 'Item'}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
+                    📦
+                  </div>
+                )}
               </div>
               <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item2?.name}
+                {trade.item2?.name || 'Unknown Item'}
               </p>
               <p className="text-xs text-gray-700">
-                ${trade.item2?.estimatedValue}
+                ${trade.item2?.estimatedValue || 0}
               </p>
             </div>
           </div>
