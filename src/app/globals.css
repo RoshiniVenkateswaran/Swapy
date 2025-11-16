@@ -2,15 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --foreground-rgb: 26, 29, 41;
+  --background-start-rgb: 240, 244, 255;
+  --background-end-rgb: 232, 240, 254;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(135deg, #F0F4FF 0%, #E8F0FE 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Glassmorphism utilities - Light theme */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px 0 rgba(74, 143, 255, 0.1);
+}
+
+.glass-dark {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 32px 0 rgba(74, 143, 255, 0.15);
+}
+
+/* Glow effects */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(74, 143, 255, 0.4), 0 0 40px rgba(74, 143, 255, 0.2);
+}
+
+.glow-accent {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4), 0 0 40px rgba(139, 92, 246, 0.2);
+}
+
+.glow-success {
+  box-shadow: 0 0 20px rgba(46, 204, 113, 0.4);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #4A8FFF 0%, #8B5CF6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* Custom scrollbar */
@@ -20,15 +68,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100;
+  background: rgba(240, 244, 255, 0.5);
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-400 rounded-lg;
+  background: linear-gradient(135deg, #4A8FFF 0%, #8B5CF6 100%);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-500;
+  background: linear-gradient(135deg, #5a9fff 0%, #9b6cf6 100%);
 }
 
 /* Animations */
@@ -46,4 +95,3 @@ body {
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
-

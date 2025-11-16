@@ -2,20 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
+import GlassCard from '@/components/ui/GlassCard';
+import GradientBadge from '@/components/ui/GradientBadge';
+import PageTransition from '@/components/ui/PageTransition';
+import { motion } from 'framer-motion';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { CategoryStats } from '@/lib/types';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
-import { Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import { ITEM_CATEGORIES } from '@/lib/constants';
+
+interface CategoryStats {
+  category: string;
+  supply: number;
+  demand: number;
+  ratio: number;
+  status: 'high-demand' | 'balanced' | 'over-supply';
+}
 
 export default function HeatmapPage() {
   const [stats, setStats] = useState<CategoryStats[]>([]);
@@ -27,26 +28,34 @@ export default function HeatmapPage() {
 
   const loadStats = async () => {
     try {
-      const statsCollection = collection(db, 'stats');
-      const snapshot = await getDocs(statsCollection);
+      const statsSnapshot = await getDocs(collection(db, 'stats'));
+      const categoryData: { [key: string]: any } = {};
 
-      const loadedStats: CategoryStats[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        loadedStats.push({
-          category: data.category,
-          demandCount: data.demandCount || 0,
-          supplyCount: data.supplyCount || 0,
-        });
+      statsSnapshot.forEach((doc) => {
+        categoryData[doc.id] = doc.data();
       });
 
-      // Sort by total activity
-      loadedStats.sort(
-        (a, b) =>
-          b.demandCount + b.supplyCount - (a.demandCount + a.supplyCount)
-      );
+      const categoryStats: CategoryStats[] = ITEM_CATEGORIES.map((category) => {
+        const data = categoryData[category] || { supply: 0, demand: 0 };
+        const supply = data.supply || 0;
+        const demand = data.demand || 0;
+        const ratio = demand / (supply + 1); // Avoid division by zero
 
-      setStats(loadedStats);
+        let status: 'high-demand' | 'balanced' | 'over-supply';
+        if (ratio > 1.5) status = 'high-demand';
+        else if (ratio > 0.5) status = 'balanced';
+        else status = 'over-supply';
+
+        return {
+          category,
+          supply,
+          demand,
+          ratio,
+          status,
+        };
+      }).sort((a, b) => b.ratio - a.ratio); // Sort by demand ratio
+
+      setStats(categoryStats);
     } catch (error) {
       console.error('Error loading stats:', error);
     } finally {
@@ -54,186 +63,254 @@ export default function HeatmapPage() {
     }
   };
 
-  const getTrendingCategories = () => {
-    return stats
-      .filter((s) => s.demandCount > s.supplyCount)
-      .slice(0, 5);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'high-demand':
+        return 'from-red-500 to-orange-500';
+      case 'balanced':
+        return 'from-green-500 to-emerald-500';
+      case 'over-supply':
+        return 'from-blue-500 to-cyan-500';
+      default:
+        return 'from-gray-500 to-gray-600';
+    }
   };
 
-  const getRareCategories = () => {
-    return stats
-      .filter((s) => s.supplyCount > 0 && s.demandCount > s.supplyCount * 2)
-      .slice(0, 5);
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'high-demand':
+        return { icon: '🔥', label: 'High Demand', variant: 'warning' as const };
+      case 'balanced':
+        return { icon: '✅', label: 'Balanced', variant: 'success' as const };
+      case 'over-supply':
+        return { icon: '📦', label: 'Over Supply', variant: 'primary' as const };
+      default:
+        return { icon: '➖', label: 'Unknown', variant: 'primary' as const };
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
-  }
+  const getCategoryIcon = (category: string) => {
+    const icons: { [key: string]: string } = {
+      Textbooks: '📚',
+      Electronics: '💻',
+      Furniture: '🪑',
+      Clothing: '👕',
+      'Sports Equipment': '⚽',
+      'School Supplies': '✏️',
+      Other: '📦',
+    };
+    return icons[category] || '📦';
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <PageTransition>
+      <div className="min-h-screen pb-20">
+        <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Market Analytics
-        </h1>
-        <p className="text-gray-600 mb-8">
-          Demand vs Supply heatmap across categories
-        </p>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-12"
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+              className="text-6xl mb-4"
+            >
+              🗺️
+            </motion.div>
+            <h1 className="text-5xl font-bold mb-4">
+              <span className="gradient-text">Campus Trading Insights</span>
+            </h1>
+            <p className="text-xl text-gray-700">
+              Real-time demand and supply analytics for your campus
+            </p>
+          </motion.div>
 
-        {/* Chart */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">
-            Demand vs Supply by Category
-          </h2>
-          {stats.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              No data available yet
+          {/* Legend */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mb-8"
+          >
+            <GlassCard>
+              <div className="flex flex-wrap gap-4 justify-center">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-gradient-to-r from-red-500 to-orange-500 rounded-full glow-primary"></div>
+                  <span className="text-sm text-gray-700">🔥 High Demand</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full glow-success"></div>
+                  <span className="text-sm text-gray-700">✅ Balanced</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"></div>
+                  <span className="text-sm text-gray-700">📦 Over Supply</span>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
+
+          {/* Loading State */}
+          {loading && (
+            <div className="text-center py-12">
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className="text-6xl mb-4"
+              >
+                📊
+              </motion.div>
+              <p className="text-gray-700">Loading heatmap data...</p>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={stats}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="category"
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="demandCount" fill="#3B82F6" name="Demand" />
-                <Bar dataKey="supplyCount" fill="#10B981" name="Supply" />
-              </BarChart>
-            </ResponsiveContainer>
           )}
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Trending Categories */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <TrendingUp className="w-6 h-6 text-green-600" />
-              <h2 className="text-xl font-bold text-gray-900">
-                High Demand Categories
-              </h2>
-            </div>
-            {getTrendingCategories().length === 0 ? (
-              <p className="text-gray-500">No trending categories yet</p>
-            ) : (
-              <div className="space-y-3">
-                {getTrendingCategories().map((stat) => (
-                  <div
+          {/* Heatmap Bars */}
+          {!loading && (
+            <div className="space-y-6">
+              {stats.map((stat, index) => {
+                const badge = getStatusBadge(stat.status);
+                const maxValue = Math.max(...stats.map(s => Math.max(s.supply, s.demand)));
+                const supplyPercent = (stat.supply / maxValue) * 100;
+                const demandPercent = (stat.demand / maxValue) * 100;
+
+                return (
+                  <motion.div
                     key={stat.category}
-                    className="flex items-center justify-between p-3 bg-green-50 rounded-lg"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
                   >
-                    <span className="font-medium text-gray-900">
-                      {stat.category}
-                    </span>
-                    <div className="text-sm text-gray-600">
-                      <span className="text-green-600 font-semibold">
-                        {stat.demandCount}
-                      </span>{' '}
-                      demand /{' '}
-                      <span className="text-gray-500">{stat.supplyCount}</span>{' '}
-                      supply
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                    <GlassCard hover className="group">
+                      {/* Category Header */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="text-4xl">{getCategoryIcon(stat.category)}</div>
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-900 group-hover:gradient-text transition-all duration-300">
+                              {stat.category}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              Demand Ratio: {stat.ratio.toFixed(2)}x
+                            </p>
+                          </div>
+                        </div>
+                        <GradientBadge variant={badge.variant}>
+                          {badge.icon} {badge.label}
+                        </GradientBadge>
+                      </div>
 
-          {/* Rare/Oversupplied Categories */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <TrendingDown className="w-6 h-6 text-orange-600" />
-              <h2 className="text-xl font-bold text-gray-900">
-                Rare in Demand
-              </h2>
+                      {/* Supply Bar */}
+                      <div className="mb-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm text-gray-600">📦 Supply</span>
+                          <span className="text-sm font-semibold text-gray-900">{stat.supply}</span>
+                        </div>
+                        <div className="w-full bg-dark/50 rounded-full h-6 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${supplyPercent}%` }}
+                            transition={{ duration: 1, delay: 0.3 + index * 0.1 }}
+                            className={`h-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-end px-3`}
+                          >
+                            {stat.supply > 0 && (
+                              <span className="text-xs font-bold text-gray-900">
+                                {stat.supply}
+                              </span>
+                            )}
+                          </motion.div>
+                        </div>
+                      </div>
+
+                      {/* Demand Bar */}
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm text-gray-600">🔥 Demand</span>
+                          <span className="text-sm font-semibold text-gray-900">{stat.demand}</span>
+                        </div>
+                        <div className="w-full bg-dark/50 rounded-full h-6 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${demandPercent}%` }}
+                            transition={{ duration: 1, delay: 0.5 + index * 0.1 }}
+                            className={`h-full bg-gradient-to-r ${getStatusColor(stat.status)} flex items-center justify-end px-3`}
+                          >
+                            {stat.demand > 0 && (
+                              <span className="text-xs font-bold text-gray-900">
+                                {stat.demand}
+                              </span>
+                            )}
+                          </motion.div>
+                        </div>
+                      </div>
+
+                      {/* Insights */}
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        whileHover={{ opacity: 1, height: 'auto' }}
+                        className="mt-4 pt-4 border-t border-white/10 overflow-hidden"
+                      >
+                        <p className="text-sm text-gray-700">
+                          {stat.status === 'high-demand' && (
+                            `🔥 Hot category! High demand with ${stat.demand} people looking for ${stat.category.toLowerCase()}.`
+                          )}
+                          {stat.status === 'balanced' && (
+                            `✅ Good balance between supply (${stat.supply}) and demand (${stat.demand}).`
+                          )}
+                          {stat.status === 'over-supply' && (
+                            `📦 More supply (${stat.supply}) than demand (${stat.demand}). Consider other categories.`
+                          )}
+                        </p>
+                      </motion.div>
+                    </GlassCard>
+                  </motion.div>
+                );
+              })}
             </div>
-            {getRareCategories().length === 0 ? (
-              <p className="text-gray-500">No rare categories yet</p>
-            ) : (
-              <div className="space-y-3">
-                {getRareCategories().map((stat) => (
-                  <div
-                    key={stat.category}
-                    className="flex items-center justify-between p-3 bg-orange-50 rounded-lg"
-                  >
-                    <span className="font-medium text-gray-900">
-                      {stat.category}
-                    </span>
-                    <div className="text-sm text-gray-600">
-                      <span className="text-orange-600 font-semibold">
-                        {stat.demandCount}
-                      </span>{' '}
-                      demand /{' '}
-                      <span className="text-gray-500">{stat.supplyCount}</span>{' '}
-                      supply
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+          )}
 
-        {/* All Categories Table */}
-        <div className="bg-white rounded-xl shadow-md p-6 mt-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            All Categories
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                    Category
-                  </th>
-                  <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                    Demand
-                  </th>
-                  <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                    Supply
-                  </th>
-                  <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                    Ratio
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.map((stat) => (
-                  <tr key={stat.category} className="border-b border-gray-100">
-                    <td className="py-3 px-4 font-medium">{stat.category}</td>
-                    <td className="py-3 px-4 text-center text-blue-600 font-semibold">
-                      {stat.demandCount}
-                    </td>
-                    <td className="py-3 px-4 text-center text-green-600 font-semibold">
-                      {stat.supplyCount}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {stat.supplyCount > 0
-                        ? (stat.demandCount / stat.supplyCount).toFixed(2)
-                        : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </main>
-    </div>
+          {/* Summary Card */}
+          {!loading && stats.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: stats.length * 0.1 + 0.5 }}
+              className="mt-12"
+            >
+              <GlassCard className="bg-gradient-glow text-center py-8">
+                <div className="text-5xl mb-4 animate-glow">✨</div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                  Want to maximize your trades?
+                </h3>
+                <p className="text-gray-700 mb-6">
+                  Focus on high-demand categories or offer items that are in short supply!
+                </p>
+                <div className="flex justify-center gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => window.location.href = '/upload'}
+                    className="bg-gradient-primary text-gray-900 px-6 py-3 rounded-xl font-semibold shadow-lg glow-primary"
+                  >
+                    📤 Upload Item
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => window.location.href = '/matches'}
+                    className="glass text-gray-900 px-6 py-3 rounded-xl font-semibold hover:bg-white/50"
+                  >
+                    🤝 Find Matches
+                  </motion.button>
+                </div>
+              </GlassCard>
+            </motion.div>
+          )}
+        </main>
+      </div>
+    </PageTransition>
   );
 }
-

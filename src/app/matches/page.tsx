@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import Navbar from '@/components/Navbar';
+import GlassCard from '@/components/ui/GlassCard';
+import MatchCard from '@/components/ui/MatchCard';
+import MultiHopNode from '@/components/ui/MultiHopNode';
+import GradientBadge from '@/components/ui/GradientBadge';
+import ActionButton from '@/components/ui/ActionButton';
+import PageTransition from '@/components/ui/PageTransition';
+import { motion, AnimatePresence } from 'framer-motion';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Item } from '@/lib/types';
-import ItemCard from '@/components/ItemCard';
-import MultiHopCard from '@/components/MultiHopCard';
-import { Loader2 } from 'lucide-react';
 
 export default function MatchesPage() {
   const { user } = useAuth();
@@ -85,135 +89,260 @@ export default function MatchesPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
-  }
-
-  if (myItems.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            No Items to Match
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Upload an item first to see potential matches
-          </p>
-          <a
-            href="/upload"
-            className="inline-block bg-primary text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition"
-          >
-            Upload Item
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <PageTransition>
+      <div className="min-h-screen pb-20">
+        <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Find Matches
-        </h1>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-12"
+          >
+            <h1 className="text-5xl font-bold mb-4">
+              <span className="gradient-text">Find Your Match</span>
+            </h1>
+            <p className="text-xl text-gray-700">
+              AI-powered trading suggestions tailored for you
+            </p>
+          </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar - My Items */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-md p-4 sticky top-20">
-              <h2 className="font-semibold text-lg mb-4">Your Items</h2>
-              <div className="space-y-2">
-                {myItems.map((item) => (
-                  <button
-                    key={item.itemId}
-                    onClick={() => handleSelectItem(item)}
-                    className={`w-full text-left p-3 rounded-lg transition ${
-                      selectedItem?.itemId === item.itemId
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-50 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="font-medium text-sm truncate">
-                      {item.name}
-                    </div>
-                    <div className="text-xs opacity-75 mt-1">
-                      ${item.estimatedValue}
-                    </div>
-                  </button>
-                ))}
-              </div>
+          {/* My Items Selector */}
+          {myItems.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mb-8"
+            >
+              <GlassCard>
+                <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                  <span className="text-2xl mr-2">📦</span>
+                  Select Your Item
+                </h2>
+                <div className="flex gap-4 overflow-x-auto pb-4">
+                  {myItems.map((item) => (
+                    <motion.button
+                      key={item.itemId}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleSelectItem(item)}
+                      className={`
+                        flex-shrink-0 p-4 rounded-2xl transition-all duration-300
+                        ${
+                          selectedItem?.itemId === item.itemId
+                            ? 'bg-gradient-primary shadow-xl glow-primary'
+                            : 'glass hover:bg-white/50'
+                        }
+                      `}
+                    >
+                      <p className="text-gray-900 font-semibold text-sm truncate max-w-[150px]">
+                        {item.name}
+                      </p>
+                      <p className="text-gray-700 text-xs">
+                        ${item.estimatedValue}
+                      </p>
+                    </motion.button>
+                  ))}
+                </div>
+              </GlassCard>
+            </motion.div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="text-center py-12">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                className="text-6xl mb-4"
+              >
+                🔄
+              </motion.div>
+              <p className="text-gray-700">Loading your items...</p>
             </div>
-          </div>
+          )}
 
-          {/* Main Content */}
-          <div className="lg:col-span-3 space-y-8">
-            {loadingMatches ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <>
-                {/* Single-Hop Matches */}
-                <section>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                    Direct Matches (1-to-1)
-                  </h2>
-                  {singleHopMatches.length === 0 ? (
-                    <div className="bg-white rounded-xl p-8 text-center text-gray-500">
-                      No matches found
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {singleHopMatches.map((match) => (
-                        <ItemCard
-                          key={match.item.itemId}
-                          item={match.item}
-                          score={match.score}
-                          breakdown={match.breakdown}
-                          sourceItem={selectedItem!}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </section>
+          {/* No Items */}
+          {!loading && myItems.length === 0 && (
+            <GlassCard className="text-center py-12">
+              <div className="text-6xl mb-4">📭</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                No items yet
+              </h3>
+              <p className="text-gray-700 mb-6">
+                Upload your first item to start finding matches!
+              </p>
+              <ActionButton
+                variant="primary"
+                onClick={() => (window.location.href = '/upload')}
+              >
+                📤 Upload Item
+              </ActionButton>
+            </GlassCard>
+          )}
 
-                {/* Multi-Hop Matches */}
-                <section>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                    Multi-Hop Chains
+          {/* Matches Content */}
+          {selectedItem && (
+            <div className="space-y-12">
+              {/* Single-Hop Matches */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-3xl font-bold text-gray-900 flex items-center">
+                    <span className="text-4xl mr-3">🎯</span>
+                    Direct Matches
                   </h2>
-                  {multiHopCycles.length === 0 ? (
-                    <div className="bg-white rounded-xl p-8 text-center text-gray-500">
-                      No multi-hop chains found
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {multiHopCycles.map((cycleData, index) => (
-                        <MultiHopCard
-                          key={index}
-                          cycle={cycleData.cycle}
-                          chainFairnessScore={cycleData.chainFairnessScore}
+                  <GradientBadge variant="primary">
+                    {singleHopMatches.length} Found
+                  </GradientBadge>
+                </div>
+
+                {loadingMatches ? (
+                  <div className="text-center py-12">
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      className="text-6xl mb-4"
+                    >
+                      🔍
+                    </motion.div>
+                    <p className="text-gray-700">Finding matches...</p>
+                  </div>
+                ) : singleHopMatches.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {singleHopMatches.map((match, index) => (
+                      <motion.div
+                        key={match.matchedItem.itemId}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <MatchCard
+                          itemName={match.matchedItem.name}
+                          itemImage={match.matchedItem.imageUrl}
+                          fairTradeScore={match.fairTradeScore}
+                          condition={match.matchedItem.conditionScore}
+                          estimatedValue={match.matchedItem.estimatedValue}
+                          yourItemValue={selectedItem.estimatedValue}
+                          onAccept={() => console.log('Accept trade')}
+                          onViewDetails={() => console.log('View details')}
                         />
-                      ))}
-                    </div>
-                  )}
-                </section>
-              </>
-            )}
-          </div>
-        </div>
-      </main>
-    </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <GlassCard className="text-center py-12">
+                    <div className="text-5xl mb-4">🔎</div>
+                    <p className="text-gray-700">
+                      No direct matches found. Try multi-hop trades below!
+                    </p>
+                  </GlassCard>
+                )}
+              </motion.section>
+
+              {/* Multi-Hop Trades */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-3xl font-bold text-gray-900 flex items-center">
+                    <span className="text-4xl mr-3">🔄</span>
+                    Multi-Hop Trades
+                  </h2>
+                  <GradientBadge variant="accent">
+                    {multiHopCycles.length} Cycles
+                  </GradientBadge>
+                </div>
+
+                {loadingMatches ? (
+                  <div className="text-center py-12">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                      className="text-6xl mb-4"
+                    >
+                      🔄
+                    </motion.div>
+                    <p className="text-gray-700">Finding trade cycles...</p>
+                  </div>
+                ) : multiHopCycles.length > 0 ? (
+                  <div className="space-y-6">
+                    {multiHopCycles.map((cycle, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.2 }}
+                      >
+                        <GlassCard hover className="overflow-x-auto">
+                          {/* Cycle Score */}
+                          <div className="flex justify-between items-center mb-6">
+                            <GradientBadge variant="success" glow>
+                              ⭐ {cycle.chainFairnessScore}% Fair
+                            </GradientBadge>
+                            <span className="text-sm text-gray-700">
+                              {cycle.chain.length}-way trade
+                            </span>
+                          </div>
+
+                          {/* Chain Visualization */}
+                          <div className="flex items-center overflow-x-auto pb-4">
+                            {cycle.chain.map((item: any, nodeIndex: number) => (
+                              <MultiHopNode
+                                key={nodeIndex}
+                                itemName={item.name}
+                                itemImage={item.imageUrl}
+                                userName={item.userName || 'User'}
+                                index={nodeIndex}
+                                total={cycle.chain.length}
+                              />
+                            ))}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex gap-3 mt-6">
+                            <ActionButton
+                              variant="primary"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => console.log('View cycle details')}
+                            >
+                              👁️ View Details
+                            </ActionButton>
+                            <ActionButton
+                              variant="success"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => console.log('Initiate trade')}
+                            >
+                              ✅ Initiate Trade
+                            </ActionButton>
+                          </div>
+                        </GlassCard>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <GlassCard className="text-center py-12">
+                    <div className="text-5xl mb-4">🌐</div>
+                    <p className="text-gray-700">
+                      No multi-hop trade cycles found at the moment.
+                    </p>
+                  </GlassCard>
+                )}
+              </motion.section>
+            </div>
+          )}
+        </main>
+      </div>
+    </PageTransition>
   );
 }
-

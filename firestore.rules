@@ -26,6 +26,25 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false; // Only backend can write
     }
+    
+    // OTP collection (accessible via API routes for signup)
+    match /otps/{email} {
+      // Allow unauthenticated operations for signup flow (users aren't logged in yet)
+      // API routes validate email format and .edu domain before creating
+      // Security: Only allow valid OTP documents with proper structure
+      allow create: if request.resource.data.email is string && 
+                       request.resource.data.otp is string &&
+                       request.resource.data.expiresAt is timestamp;
+      
+      // Allow read for OTP verification (anyone can read their OTP)
+      allow read: if true;
+      
+      // Allow update for incrementing attempts and other OTP operations
+      allow update: if true;
+      
+      // Allow delete after successful verification
+      allow delete: if true;
+    }
   }
 }
 
