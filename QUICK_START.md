@@ -1,6 +1,6 @@
 # ⚡ Quick Start Guide
 
-Get CampusBarter AI running in **10 minutes**!
+Get Swapy running in **10 minutes**!
 
 ## Prerequisites Checklist
 

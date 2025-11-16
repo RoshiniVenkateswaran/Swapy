@@ -1,4 +1,4 @@
-# Deployment Guide for CampusBarter AI
+# Deployment Guide for Swapy
 
 ## Quick Deployment Checklist
 
@@ -126,7 +126,7 @@ vercel --prod
 1. Go to Firebase Console → Authentication → Settings
 2. Add Authorized Domains:
    - `localhost` (for testing)
-   - Your Vercel domain (e.g., `campusbarter.vercel.app`)
+   - Your Vercel domain (e.g., `swapy.vercel.app`)
    - Custom domain (if applicable)
 
 #### B. Test the Application
@@ -187,7 +187,7 @@ firebase use --add staging
 
 # Deploy to staging
 firebase deploy --only functions,firestore,storage --project staging
-vercel --prod --scope your-team --name campusbarter-staging
+vercel --prod --scope your-team --name swapy-staging
 ```
 
 ### Production
@@ -371,5 +371,5 @@ jobs:
 
 ---
 
-**🎉 Congratulations! Your CampusBarter AI platform is now live!**
+**🎉 Congratulations! Your Swapy platform is now live!**
 

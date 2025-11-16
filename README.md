@@ -1,4 +1,4 @@
-# CampusBarter AI 🎓🔄
+# Swapy 🎓🔄
 
 A **campus-exclusive barter platform** where students can trade items using AI-powered matching, fair trade scoring, and multi-hop trade detection.
 

@@ -26,10 +26,10 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           <Link href="/dashboard" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">CB</span>
+              <span className="text-white font-bold text-lg">S</span>
             </div>
             <span className="text-xl font-bold text-gray-900">
-              CampusBarter AI
+              Swapy
             </span>
           </Link>
 

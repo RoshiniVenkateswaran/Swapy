@@ -1,7 +1,7 @@
-# 🎯 CampusBarter AI - Project Summary
+# 🎯 Swapy - Project Summary
 
 ## Overview
-**CampusBarter AI** is a complete, production-ready campus barter platform that uses AI to facilitate fair trades between students. The system analyzes items, matches traders, and even detects multi-hop trade opportunities.
+**Swapy** is a complete, production-ready campus barter platform that uses AI to facilitate fair trades between students. The system analyzes items, matches traders, and even detects multi-hop trade opportunities.
 
 ---
 
@@ -361,7 +361,7 @@ By studying/extending this project, you learn:
 
 ## 🎉 Final Notes
 
-This is a **complete, production-ready MVP** of CampusBarter AI. It includes:
+This is a **complete, production-ready MVP** of Swapy. It includes:
 
 ✅ Full authentication system
 ✅ AI-powered item analysis

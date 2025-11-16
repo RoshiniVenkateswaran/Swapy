@@ -32,6 +32,14 @@ export const analyzeItem = functions.https.onCall(async (data, context) => {
 
   const { imageUrl, itemName, description } = data;
 
+  // Validate inputs
+  if (!imageUrl || !itemName || !description) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Missing required fields: imageUrl, itemName, or description'
+    );
+  }
+
   try {
     // Call OpenRouter API with Gemini
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -68,13 +76,29 @@ Only return valid JSON, no additional text.`,
       }),
     });
 
-    const aiData = await response.json();
-    const aiContent = aiData.choices[0]?.message?.content;
+    // Check if response is ok
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenRouter API error:', response.status, errorText);
+      throw new Error(`OpenRouter API failed with status ${response.status}`);
+    }
+
+    const aiData: any = await response.json();
+    
+    // Validate AI response structure
+    if (!aiData.choices || !aiData.choices[0] || !aiData.choices[0].message) {
+      console.error('Invalid AI response structure:', aiData);
+      throw new Error('Invalid response from AI');
+    }
+
+    const aiContent = aiData.choices[0].message.content;
 
     let analysisResult;
     try {
       analysisResult = JSON.parse(aiContent);
-    } catch {
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', aiContent);
+      // Fallback to default values
       analysisResult = {
         category: 'Other',
         conditionScore: 70,
@@ -93,9 +117,12 @@ Only return valid JSON, no additional text.`,
       ...analysisResult,
       estimatedValue,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error analyzing item:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to analyze item');
+    throw new functions.https.HttpsError(
+      'internal', 
+      `Failed to analyze item: ${error.message || 'Unknown error'}`
+    );
   }
 });
 

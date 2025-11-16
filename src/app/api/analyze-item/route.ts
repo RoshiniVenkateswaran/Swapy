@@ -5,6 +5,14 @@ export async function POST(request: NextRequest) {
   try {
     const { imageUrl, itemName, description } = await request.json();
 
+    // Validate inputs
+    if (!imageUrl || !itemName || !description) {
+      return NextResponse.json(
+        { error: 'Missing required fields: imageUrl, itemName, or description' },
+        { status: 400 }
+      );
+    }
+
     // Call OpenRouter API with Gemini 1.5 Flash
     const openRouterResponse = await fetch(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -44,17 +52,27 @@ Only return valid JSON, no additional text.`,
     );
 
     if (!openRouterResponse.ok) {
-      throw new Error('Failed to analyze with AI');
+      const errorText = await openRouterResponse.text();
+      console.error('OpenRouter API error:', openRouterResponse.status, errorText);
+      throw new Error(`OpenRouter API failed with status ${openRouterResponse.status}`);
     }
 
-    const aiData = await openRouterResponse.json();
-    const aiContent = aiData.choices[0]?.message?.content;
+    const aiData: any = await openRouterResponse.json();
+    
+    // Validate AI response structure
+    if (!aiData.choices || !aiData.choices[0] || !aiData.choices[0].message) {
+      console.error('Invalid AI response structure:', aiData);
+      throw new Error('Invalid response from AI');
+    }
+
+    const aiContent = aiData.choices[0].message.content;
 
     // Parse AI response
     let analysisResult;
     try {
       analysisResult = JSON.parse(aiContent);
-    } catch {
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', aiContent);
       // Fallback if AI doesn't return valid JSON
       analysisResult = {
         category: 'Other',
@@ -77,7 +95,7 @@ Only return valid JSON, no additional text.`,
   } catch (error: any) {
     console.error('Error analyzing item:', error);
     return NextResponse.json(
-      { error: 'Failed to analyze item' },
+      { error: `Failed to analyze item: ${error.message || 'Unknown error'}` },
       { status: 500 }
     );
   }

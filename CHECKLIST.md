@@ -1,4 +1,4 @@
-# ✅ CampusBarter AI - Complete Project Checklist
+# ✅ Swapy - Complete Project Checklist
 
 ## 📦 Files Created (50+ files)
 

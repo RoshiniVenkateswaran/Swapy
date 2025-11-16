@@ -1,4 +1,4 @@
-# CampusBarter AI - Complete Feature List
+# Swapy - Complete Feature List
 
 ## ✅ Implemented Features
 

@@ -1,5 +1,5 @@
 /**
- * Utility functions for CampusBarter AI
+ * Utility functions for Swapy
  */
 
 /**

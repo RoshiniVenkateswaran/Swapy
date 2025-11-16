@@ -3,7 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/components/AuthProvider';
 
 export const metadata: Metadata = {
-  title: 'CampusBarter AI - Smart Campus Trading',
+  title: 'Swapy - Smart Campus Trading',
   description: 'AI-powered barter platform for college students',
 };
 
