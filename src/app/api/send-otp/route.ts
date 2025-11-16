@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import { generateOTP, validateEduEmail } from '@/lib/auth-utils';
 import { ALLOWED_DOMAINS } from '@/lib/constants';
 import { handleFirestoreError, handleAPIError } from '@/lib/auth-errors';
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,8 +34,8 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Store OTP in Firestore
-    const otpRef = doc(db, 'otps', email.toLowerCase());
-    await setDoc(otpRef, {
+    const otpRef = adminDb.collection('otps').doc(email.toLowerCase());
+    await otpRef.set({
       email: email.toLowerCase(),
       otp,
       expiresAt: Timestamp.fromDate(expiresAt),

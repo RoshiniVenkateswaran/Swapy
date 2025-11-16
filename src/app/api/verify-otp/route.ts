@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { Timestamp } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { handleOTPError, handleFirestoreError, handleAPIError } from '@/lib/auth-errors';
 
 const MAX_ATTEMPTS = 5;
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,22 +20,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get OTP from Firestore
-    const otpRef = doc(db, 'otps', email.toLowerCase());
-    const otpDoc = await getDoc(otpRef);
+    const otpRef = adminDb.collection('otps').doc(email.toLowerCase());
+    const otpDoc = await otpRef.get();
 
-    if (!otpDoc.exists()) {
+    if (!otpDoc.exists) {
       return NextResponse.json(
         { error: 'Invalid or expired verification code. Please request a new one.' },
         { status: 400 }
       );
     }
 
-    const otpData = otpDoc.data();
+    const otpData = otpDoc.data()!;
     const attempts = (otpData.attempts || 0) + 1;
 
     // Check max attempts
     if (attempts > MAX_ATTEMPTS) {
-      await deleteDoc(otpRef);
+      await otpRef.delete();
       return NextResponse.json(
         { error: 'Too many failed attempts. Please request a new verification code.' },
         { status: 400 }
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Check if OTP expired
     const expiresAt = otpData.expiresAt.toDate();
     if (new Date() > expiresAt) {
-      await deleteDoc(otpRef);
+      await otpRef.delete();
       return NextResponse.json(
         { error: 'Verification code has expired. Please request a new one.' },
         { status: 400 }
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Verify OTP
     if (otpData.otp !== otp) {
-      await setDoc(otpRef, {
+      await otpRef.set({
         ...otpData,
         attempts,
       }, { merge: true });
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     // OTP verified successfully - delete it
-    await deleteDoc(otpRef);
+    await otpRef.delete();
 
     return NextResponse.json({
       success: true,
