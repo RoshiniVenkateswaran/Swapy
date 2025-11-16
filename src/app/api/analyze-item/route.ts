@@ -246,13 +246,13 @@ const PRICE_TABLE = {
     }
   },
   bags: {
-    min: 10,
-    max: 150,
+    min: 15,
+    max: 180,
     subcategories: {
-      backpack: { min: 15, max: 100 },
-      handbag: { min: 20, max: 150 },
-      tote: { min: 10, max: 60 },
-      laptop_bag: { min: 20, max: 120 }
+      backpack: { min: 20, max: 120 },
+      handbag: { min: 25, max: 180 },
+      tote: { min: 15, max: 80 },
+      laptop_bag: { min: 25, max: 140 }
     }
   },
   sports: {
@@ -301,8 +301,17 @@ function getAgeFactor(ageValue: number, ageUnit: 'years' | 'months'): number {
   return ageFactor;
 }
 
-// Brand tier boost
-function getBrandBoost(brandTier?: string): number {
+// Brand tier boost with automatic premium brand recognition
+function getBrandBoost(brandTier?: string, brandName?: string): number {
+  // Auto-upgrade known premium brands regardless of LLM assessment
+  const premiumBrands = ['adidas', 'nike', 'apple', 'sony', 'samsung', 'dell', 'hp', 'lenovo'];
+  const brand = brandName?.toLowerCase() || '';
+  
+  if (premiumBrands.includes(brand)) {
+    // Known premium brands get premium boost even if LLM says "mid"
+    return 0.15;
+  }
+  
   if (!brandTier) return 0;
   const tier = brandTier.toLowerCase();
   if (tier === 'premium') return 0.15;
@@ -343,23 +352,30 @@ function calculateConditionScore(
 
   // 3. Keyword-based adjustment (only negative keywords affect condition)
   // Keywords like "scratched", "worn", "damaged", "broken" indicate worse condition
+  // IMPORTANT: Only apply penalties if keywords clearly indicate worse condition than user reported
+  // User has already assessed condition, so keywords should only adjust if significantly different
   const keywordString = keywords.join(' ').toLowerCase();
   let keywordAdjustment = 0;
 
-  // Severe damage keywords: -25 to -40 points
-  if (/broken|malfunctioning|not working|doesn't work/.test(keywordString)) {
+  // Severe damage keywords: -25 to -40 points (only if user didn't report poor condition)
+  if (userCondition >= 3 && (/broken|malfunctioning|not working|doesn't work/.test(keywordString))) {
     keywordAdjustment = -40;
-  } else if (/damaged|torn|cracked|severely worn/.test(keywordString)) {
+  } else if (userCondition >= 3 && (/damaged|torn|cracked|severely worn/.test(keywordString))) {
     keywordAdjustment = -25;
   }
-  // Moderate wear keywords: -10 to -15 points
-  else if (/worn|faded|scratched|scuffed|dented/.test(keywordString)) {
+  // Moderate wear keywords: -8 to -12 points (reduced penalty for "average" items)
+  else if (userCondition >= 3 && (/severely worn|heavily worn|much wear/.test(keywordString))) {
     keywordAdjustment = -12;
+  } else if (userCondition >= 3 && (/worn|faded|scratched|scuffed|dented/.test(keywordString))) {
+    // Lighter penalty - "worn" is expected for "average" condition items
+    keywordAdjustment = -8;
   }
-  // Light wear keywords: -3 to -8 points
+  // Light wear keywords: -2 to -5 points (minimal for average condition)
   else if (/slight wear|minor wear|used condition|signs of use/.test(keywordString)) {
-    keywordAdjustment = -5;
+    keywordAdjustment = -3; // Minimal adjustment
   }
+  // No penalty if user already reported poor condition (1-2)
+  // User's assessment is trusted more for poor condition items
 
   conditionScore += keywordAdjustment;
 
@@ -410,7 +426,8 @@ function calculateEstimatedValue(
   ageUnit: 'years' | 'months',
   brandTier: string | undefined,
   keywords: string[],
-  attributes: Record<string, any>
+  attributes: Record<string, any>,
+  brandName?: string
 ): number {
   // Normalize category to lowercase
   const normalizedCategory = category.toLowerCase();
@@ -443,8 +460,8 @@ function calculateEstimatedValue(
   const adjustedAgeFactor = 1 - (1 - ageFactor) * 0.5; // Halve the age depreciation impact
   const valueAfterAge = base * adjustedAgeFactor;
 
-  // 3. Apply brand boost
-  const brandBoost = getBrandBoost(brandTier);
+  // 3. Apply brand boost (with automatic premium brand recognition)
+  const brandBoost = getBrandBoost(brandTier, brandName);
   const valueAfterBrand = valueAfterAge * (1 + brandBoost);
 
   // 4. Apply attribute boosts
@@ -707,7 +724,8 @@ Required JSON format:
       {
         ...analysisData.attributes || {},
         subcategory: analysisData.subcategory || analysisData.attributes?.subcategory,
-      }
+      },
+      brand || analysisData.attributes?.brand // Pass brand name for premium recognition
     );
 
     console.log('Calculated value:', estimatedValue);
