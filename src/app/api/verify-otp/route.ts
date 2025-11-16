@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Timestamp } from 'firebase/firestore';
 import { handleOTPError, handleFirestoreError, handleAPIError } from '@/lib/auth-errors';
