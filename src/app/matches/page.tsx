@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import Navbar from '@/components/Navbar';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -37,14 +37,27 @@ interface Match {
   reasoning: string;
 }
 
+interface TradeChain {
+  chainId: string;
+  items: Item[];
+  userIds: string[];
+  chainLength: number;
+  chainFairnessScore: number;
+  totalValueDifference: number;
+  reasoning: string;
+}
+
 export default function MatchesPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [myItems, setMyItems] = useState<Item[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [multiHopChains, setMultiHopChains] = useState<TradeChain[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMatches, setLoadingMatches] = useState(false);
+  const [loadingMultiHop, setLoadingMultiHop] = useState(false);
+  const [viewMode, setViewMode] = useState<'1-to-1' | 'multi-hop'>('1-to-1');
 
   useEffect(() => {
     if (user) {
@@ -85,6 +98,7 @@ export default function MatchesPage() {
     setSelectedItem(item);
     setLoadingMatches(true);
     setMatches([]);
+    setMultiHopChains([]); // Clear multi-hop when selecting new item
 
     try {
       const response = await fetch('/api/match-items', {
@@ -107,6 +121,37 @@ export default function MatchesPage() {
       alert('Failed to load matches. Please try again.');
     } finally {
       setLoadingMatches(false);
+    }
+  };
+
+  const handleFindMultiHop = async () => {
+    if (!selectedItem) return;
+
+    setLoadingMultiHop(true);
+    setMultiHopChains([]);
+
+    try {
+      const response = await fetch('/api/find-multihop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemId: selectedItem.itemId,
+          userId: user?.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to find multi-hop chains');
+      }
+
+      const data = await response.json();
+      setMultiHopChains(data.chains || []);
+      setViewMode('multi-hop'); // Auto-switch to multi-hop view
+    } catch (error) {
+      console.error('Error finding multi-hop:', error);
+      alert('Failed to find multi-hop trades. Please try again.');
+    } finally {
+      setLoadingMultiHop(false);
     }
   };
 
@@ -259,12 +304,47 @@ export default function MatchesPage() {
                 </GlassCard>
               ) : (
                 <>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                    <span className="text-3xl mr-2">🤝</span>
-                    Matches for "{selectedItem.name}"
-                  </h2>
+                  {/* Header with View Toggle */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                      <span className="text-3xl mr-2">🤝</span>
+                      Matches for "{selectedItem.name}"
+                    </h2>
 
-                  {loadingMatches ? (
+                    {/* View Mode Toggle */}
+                    <div className="flex gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setViewMode('1-to-1')}
+                        className={`px-4 py-2 rounded-xl font-semibold transition-all duration-300 ${
+                          viewMode === '1-to-1'
+                            ? 'bg-gradient-primary text-white shadow-lg'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        🤝 1-to-1
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setViewMode('multi-hop')}
+                        className={`px-4 py-2 rounded-xl font-semibold transition-all duration-300 ${
+                          viewMode === 'multi-hop'
+                            ? 'bg-gradient-primary text-white shadow-lg'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        🔄 Multi-hop
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Content based on view mode */}
+                  {viewMode === '1-to-1' ? (
+                    // 1-to-1 Matches View
+                    <>
+                      {loadingMatches ? (
                     <GlassCard className="text-center py-16">
                       <motion.div
                         animate={{ rotate: 360 }}
@@ -393,6 +473,175 @@ export default function MatchesPage() {
                         ))}
                       </AnimatePresence>
                     </div>
+                  )}
+                    </>
+                  ) : (
+                    // Multi-hop View
+                    <>
+                      {!loadingMultiHop && multiHopChains.length === 0 && (
+                        <GlassCard className="text-center py-16">
+                          <div className="text-7xl mb-6 animate-float">🔄</div>
+                          <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                            Find Multi-hop Trade Chains
+                          </h3>
+                          <p className="text-gray-700 mb-8 max-w-md mx-auto">
+                            Discover complex trading opportunities like A→B→C→A where everyone gets what they want!
+                          </p>
+                          <ActionButton
+                            onClick={handleFindMultiHop}
+                            loading={loadingMultiHop}
+                            className="inline-flex items-center space-x-2"
+                          >
+                            <span>🔍</span>
+                            <span>Find Multi-hop Trades</span>
+                          </ActionButton>
+                        </GlassCard>
+                      )}
+
+                      {loadingMultiHop && (
+                        <GlassCard className="text-center py-16">
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                            className="text-6xl mb-4 inline-block"
+                          >
+                            🔄
+                          </motion.div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">
+                            Finding multi-hop chains...
+                          </h3>
+                          <p className="text-gray-600">
+                            AI is analyzing complex trade cycles
+                          </p>
+                        </GlassCard>
+                      )}
+
+                      {!loadingMultiHop && multiHopChains.length > 0 && (
+                        <div className="space-y-8">
+                          <AnimatePresence>
+                            {multiHopChains.map((chain, chainIndex) => (
+                              <motion.div
+                                key={chain.chainId}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: chainIndex * 0.1 }}
+                              >
+                                <GlassCard hover className="p-8">
+                                  {/* Chain Header */}
+                                  <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-2xl font-bold text-gray-900">
+                                      {chain.chainLength}-Way Trade Chain
+                                    </h3>
+                                    <div className={`${getScoreBg(chain.chainFairnessScore)} text-white px-6 py-3 rounded-full text-lg font-bold shadow-lg`}>
+                                      {chain.chainFairnessScore}% Fair
+                                    </div>
+                                  </div>
+
+                                  {/* Visual Chain */}
+                                  <div className="flex items-center justify-center gap-4 mb-6 overflow-x-auto py-4">
+                                    {chain.items.map((item, itemIndex) => (
+                                      <React.Fragment key={item.itemId}>
+                                        {/* Item Node */}
+                                        <motion.div
+                                          initial={{ scale: 0 }}
+                                          animate={{ scale: 1 }}
+                                          transition={{ delay: chainIndex * 0.1 + itemIndex * 0.15 }}
+                                          className="flex flex-col items-center"
+                                        >
+                                          <div className="relative w-24 h-24 rounded-xl overflow-hidden border-4 border-primary shadow-lg">
+                                            <Image
+                                              src={item.imageUrl}
+                                              alt={item.name}
+                                              fill
+                                              className="object-cover"
+                                            />
+                                          </div>
+                                          <p className="text-sm font-bold text-gray-900 mt-2 text-center max-w-[100px] truncate">
+                                            {item.name}
+                                          </p>
+                                          <p className="text-xs text-gray-600">${item.estimatedValue}</p>
+                                        </motion.div>
+
+                                        {/* Arrow */}
+                                        {itemIndex < chain.items.length - 1 && (
+                                          <motion.div
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: chainIndex * 0.1 + itemIndex * 0.15 + 0.1 }}
+                                            className="text-4xl text-primary"
+                                          >
+                                            →
+                                          </motion.div>
+                                        )}
+
+                                        {/* Last arrow back to start */}
+                                        {itemIndex === chain.items.length - 1 && (
+                                          <motion.div
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: chainIndex * 0.1 + itemIndex * 0.15 + 0.2 }}
+                                            className="text-4xl text-green-600"
+                                          >
+                                            ↺
+                                          </motion.div>
+                                        )}
+                                      </React.Fragment>
+                                    ))}
+                                  </div>
+
+                                  {/* Chain Details */}
+                                  <div className="grid grid-cols-3 gap-4 mb-6">
+                                    <div className="text-center">
+                                      <div className="text-xs text-gray-500 mb-1">People Involved</div>
+                                      <div className="text-2xl font-bold gradient-text">
+                                        {chain.chainLength}
+                                      </div>
+                                    </div>
+                                    <div className="text-center">
+                                      <div className="text-xs text-gray-500 mb-1">Value Spread</div>
+                                      <div className="text-2xl font-bold text-gray-900">
+                                        ${chain.totalValueDifference}
+                                      </div>
+                                    </div>
+                                    <div className="text-center">
+                                      <div className="text-xs text-gray-500 mb-1">Chain Type</div>
+                                      <div className="text-lg font-bold text-gray-900">
+                                        {chain.chainLength === 3 ? 'Simple' : 'Complex'}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Reasoning */}
+                                  <p className="text-sm text-gray-600 italic mb-6 text-center">
+                                    "{chain.reasoning}"
+                                  </p>
+
+                                  {/* Action */}
+                                  <div className="flex justify-center">
+                                    <ActionButton className="px-8">
+                                      🚀 Propose Chain Trade
+                                    </ActionButton>
+                                  </div>
+                                </GlassCard>
+                              </motion.div>
+                            ))}
+                          </AnimatePresence>
+
+                          {/* Find More Button */}
+                          <div className="text-center">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={handleFindMultiHop}
+                              disabled={loadingMultiHop}
+                              className="px-6 py-3 rounded-xl font-semibold text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                            >
+                              🔄 Find More Chains
+                            </motion.button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
