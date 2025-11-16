@@ -50,17 +50,22 @@ export default function UploadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!imageFile || !user) return;
-
+  
     setError('');
     setLoading(true);
-
+  
     try {
+      console.log('Starting upload process...');
+      
       // 1. Upload image to Firebase Storage
       const storageRef = ref(storage, `items/${user.uid}/${Date.now()}_${imageFile.name}`);
       await uploadBytes(storageRef, imageFile);
       const imageUrl = await getDownloadURL(storageRef);
-
-      // 2. Call API to analyze item
+      
+      console.log('Image uploaded:', imageUrl);
+  
+      // 2. Call API route to analyze item
+      console.log('Calling analyze API...');
       const response = await fetch('/api/analyze-item', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,14 +75,19 @@ export default function UploadPage() {
           description,
         }),
       });
-
+  
+      console.log('API response status:', response.status);
+  
       if (!response.ok) {
-        throw new Error('Failed to analyze item');
+        const errorData = await response.json();
+        console.error('API error:', errorData);
+        throw new Error(errorData.error || 'Failed to analyze item');
       }
-
+  
       const analysisResult = await response.json();
+      console.log('Analysis result:', analysisResult);
       setAiResult(analysisResult);
-
+  
       // 3. Save item to Firestore
       await addDoc(collection(db, 'items'), {
         userId: user.uid,
