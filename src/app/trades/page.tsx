@@ -30,6 +30,12 @@ interface UserContact {
   address: string;
 }
 
+interface UserProfile {
+  userId: string;
+  displayName: string;
+  email: string;
+}
+
 interface Trade {
   tradeId: string;
   type?: '1-to-1' | 'multi-hop';
@@ -50,6 +56,10 @@ interface Trade {
   proposerId?: string;
   user1Contact?: UserContact;
   user2Contact?: UserContact;
+  // User profiles for display
+  user1Profile?: UserProfile;
+  user2Profile?: UserProfile;
+  partnerProfile?: UserProfile; // The other user in the trade
 }
 
 export default function TradesPage() {
@@ -138,36 +148,75 @@ export default function TradesPage() {
           // chainData already contains item details, no need to fetch
         }
 
-        // Fetch user contact details for completed trades
-        if (tradeData.status === 'completed' && tradeData.usersInvolved.length === 2) {
+        // Fetch user profiles for all trades (for display)
+        if (tradeData.usersInvolved.length >= 2) {
           try {
             const [userId1, userId2] = tradeData.usersInvolved;
             
+            // Fetch user 1 profile
             const user1Doc = await getDoc(doc(db, 'users', userId1));
             if (user1Doc.exists()) {
               const user1Data = user1Doc.data();
-              tradeData.user1Contact = {
-                displayName: user1Data.displayName || 'Unknown',
+              tradeData.user1Profile = {
+                userId: userId1,
+                displayName: user1Data.displayName || 'User 1',
                 email: user1Data.email || '',
-                phone: user1Data.phone || 'Not provided',
-                address: user1Data.address || 'Not provided',
               };
             }
 
+            // Fetch user 2 profile
             const user2Doc = await getDoc(doc(db, 'users', userId2));
             if (user2Doc.exists()) {
               const user2Data = user2Doc.data();
-              tradeData.user2Contact = {
-                displayName: user2Data.displayName || 'Unknown',
+              tradeData.user2Profile = {
+                userId: userId2,
+                displayName: user2Data.displayName || 'User 2',
                 email: user2Data.email || '',
-                phone: user2Data.phone || 'Not provided',
-                address: user2Data.address || 'Not provided',
               };
             }
 
-            console.log('✅ Contact details loaded for completed trade');
+            // Identify trading partner (the other user)
+            const partnerId = tradeData.usersInvolved.find(id => id !== user?.uid);
+            if (partnerId) {
+              const partnerDoc = await getDoc(doc(db, 'users', partnerId));
+              if (partnerDoc.exists()) {
+                const partnerData = partnerDoc.data();
+                tradeData.partnerProfile = {
+                  userId: partnerId,
+                  displayName: partnerData.displayName || 'User',
+                  email: partnerData.email || '',
+                };
+              }
+            }
+
+            console.log('✅ User profiles loaded');
+
+            // For completed trades, also fetch full contact details
+            if (tradeData.status === 'completed') {
+              if (user1Doc.exists()) {
+                const user1Data = user1Doc.data();
+                tradeData.user1Contact = {
+                  displayName: user1Data.displayName || 'Unknown',
+                  email: user1Data.email || '',
+                  phone: user1Data.phone || 'Not provided',
+                  address: user1Data.address || 'Not provided',
+                };
+              }
+
+              if (user2Doc.exists()) {
+                const user2Data = user2Doc.data();
+                tradeData.user2Contact = {
+                  displayName: user2Data.displayName || 'Unknown',
+                  email: user2Data.email || '',
+                  phone: user2Data.phone || 'Not provided',
+                  address: user2Data.address || 'Not provided',
+                };
+              }
+
+              console.log('✅ Contact details loaded for completed trade');
+            }
           } catch (error) {
-            console.error('❌ Error loading contact details:', error);
+            console.error('❌ Error loading user details:', error);
           }
         }
 
@@ -277,6 +326,11 @@ export default function TradesPage() {
     const isUserItem1 = trade.item1?.userId === user?.uid;
     const isMultiHop = trade.type === 'multi-hop';
 
+    // Determine what user gives and gets
+    const userGivesItem = isUserItem1 ? trade.item1 : trade.item2;
+    const userGetsItem = isUserItem1 ? trade.item2 : trade.item1;
+    const tradingPartner = trade.partnerProfile;
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -284,19 +338,35 @@ export default function TradesPage() {
         transition={{ delay: index * 0.1 }}
       >
         <GlassCard hover className="group">
-          {/* Status Badge */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <GradientBadge variant={badge.variant}>
-                {badge.icon} {badge.label}
-              </GradientBadge>
-              {isMultiHop && (
-                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
-                  🔄 Multi-hop
-                </span>
+          {/* Header with Status & Partner */}
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <GradientBadge variant={badge.variant}>
+                  {badge.icon} {badge.label}
+                </GradientBadge>
+                {isMultiHop && (
+                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                    🔄 Multi-hop
+                  </span>
+                )}
+              </div>
+              {/* Trading Partner Info */}
+              {tradingPartner && !isMultiHop && (
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center text-sm font-bold text-white shadow-md">
+                    {tradingPartner.displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {tradingPartner.displayName}
+                    </p>
+                    <p className="text-xs text-gray-600">Trading partner</p>
+                  </div>
+                </div>
               )}
             </div>
-            <span className="text-sm text-gray-600">
+            <span className="text-xs text-gray-500">
               {trade.createdAt?.toDate().toLocaleDateString()}
             </span>
           </div>
@@ -364,72 +434,116 @@ export default function TradesPage() {
               </div>
             </div>
           ) : (
-            // 1-to-1 Trade Display
-            <div className="space-y-4 mb-4">
-              {/* Your Item */}
-              <div className="space-y-2">
-                <p className="text-xs text-gray-600 font-semibold">
-                  {isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
-                </p>
-                <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
-                  {trade.item1?.imageUrl ? (
-                    <Image
-                      src={trade.item1.imageUrl}
-                      alt={trade.item1?.name || 'Item'}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
-                      📦
+            // 1-to-1 Trade Display - Clear "You Give" vs "You Get"
+            <div className="mb-4">
+              {/* Swap Visual Container */}
+              <div className="relative">
+                {/* YOU GIVE Section */}
+                <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 mb-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">
+                      ↑
                     </div>
-                  )}
+                    <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
+                      You Give
+                    </h3>
+                  </div>
+                  <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                      {userGivesItem?.imageUrl ? (
+                        <Image
+                          src={userGivesItem.imageUrl}
+                          alt={userGivesItem.name || 'Item'}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+                          📦
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-bold text-gray-900 truncate">
+                        {userGivesItem?.name || 'Unknown Item'}
+                      </p>
+                      <p className="text-xs text-gray-600 mb-1">
+                        {userGivesItem?.category || 'N/A'}
+                      </p>
+                      <p className="text-sm font-semibold text-red-600">
+                        ${userGivesItem?.estimatedValue || 0}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {trade.item1?.name || 'Unknown Item'}
-                </p>
-                <p className="text-xs text-gray-700">
-                  ${trade.item1?.estimatedValue || 0}
-                </p>
+
+                {/* Swap Icon */}
+                <div className="flex justify-center -my-5 relative z-10">
+                  <motion.div
+                    animate={{ rotate: [0, 180, 360] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg"
+                  >
+                    <span className="text-white text-2xl">⇄</span>
+                  </motion.div>
+                </div>
+
+                {/* YOU GET Section */}
+                <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 mt-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">
+                      ↓
+                    </div>
+                    <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
+                      You Get
+                    </h3>
+                  </div>
+                  <div className="flex gap-3 items-center bg-white rounded-xl p-3">
+                    <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0 shadow-md">
+                      {userGetsItem?.imageUrl ? (
+                        <Image
+                          src={userGetsItem.imageUrl}
+                          alt={userGetsItem.name || 'Item'}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
+                          📦
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-bold text-gray-900 truncate">
+                        {userGetsItem?.name || 'Unknown Item'}
+                      </p>
+                      <p className="text-xs text-gray-600 mb-1">
+                        {userGetsItem?.category || 'N/A'}
+                      </p>
+                      <p className="text-sm font-semibold text-green-600">
+                        ${userGetsItem?.estimatedValue || 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Arrow */}
-              <div className="flex justify-center">
-                <motion.div
-                  animate={{ y: [0, 5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="text-3xl text-primary"
-                >
-                  ⇅
-                </motion.div>
-              </div>
-
-              {/* Their Item */}
-              <div className="space-y-2">
-                <p className="text-xs text-gray-600 font-semibold">
-                  {!isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
-                </p>
-                <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
-                  {trade.item2?.imageUrl ? (
-                    <Image
-                      src={trade.item2.imageUrl}
-                      alt={trade.item2?.name || 'Item'}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
-                      📦
-                    </div>
-                  )}
+              {/* Value Comparison */}
+              {userGivesItem && userGetsItem && (
+                <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Value Difference:</span>
+                    <span className={`font-bold ${
+                      Math.abs((userGivesItem.estimatedValue || 0) - (userGetsItem.estimatedValue || 0)) <= 5
+                        ? 'text-green-600'
+                        : 'text-orange-600'
+                    }`}>
+                      ${Math.abs((userGivesItem.estimatedValue || 0) - (userGetsItem.estimatedValue || 0))}
+                      {Math.abs((userGivesItem.estimatedValue || 0) - (userGetsItem.estimatedValue || 0)) <= 5 && ' ✓ Fair!'}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {trade.item2?.name || 'Unknown Item'}
-                </p>
-                <p className="text-xs text-gray-700">
-                  ${trade.item2?.estimatedValue || 0}
-                </p>
-              </div>
+              )}
             </div>
           )}
 
