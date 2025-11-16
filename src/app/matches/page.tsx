@@ -10,6 +10,7 @@ import GlassCard from '@/components/ui/GlassCard';
 import ActionButton from '@/components/ui/ActionButton';
 import PageTransition from '@/components/ui/PageTransition';
 import TradeProposalModal from '@/components/ui/TradeProposalModal';
+import TradeResultModal from '@/components/ui/TradeResultModal';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
@@ -66,6 +67,11 @@ export default function MatchesPage() {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [selectedChain, setSelectedChain] = useState<TradeChain | null>(null);
   const [proposing, setProposing] = useState(false);
+
+  // Result Modal state
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultType, setResultType] = useState<'success' | 'error'>('success');
+  const [resultMessage, setResultMessage] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -126,7 +132,9 @@ export default function MatchesPage() {
       setMatches(data.matches || []);
     } catch (error) {
       console.error('Error fetching matches:', error);
-      alert('Failed to load matches. Please try again.');
+      setResultType('error');
+      setResultMessage('Failed to load matches. Please try again.');
+      setShowResultModal(true);
     } finally {
       setLoadingMatches(false);
     }
@@ -157,7 +165,9 @@ export default function MatchesPage() {
       setViewMode('multi-hop'); // Auto-switch to multi-hop view
     } catch (error) {
       console.error('Error finding multi-hop:', error);
-      alert('Failed to find multi-hop trades. Please try again.');
+      setResultType('error');
+      setResultMessage('Failed to find multi-hop trades. Please try again.');
+      setShowResultModal(true);
     } finally {
       setLoadingMultiHop(false);
     }
@@ -202,9 +212,11 @@ export default function MatchesPage() {
         // Close modal
         setShowProposalModal(false);
         
-        // Show success with alert (can be replaced with toast later)
+        // Show success modal
         setTimeout(() => {
-          alert(`✅ ${data.message}`);
+          setResultType('success');
+          setResultMessage(data.message || 'Trade proposal sent successfully!');
+          setShowResultModal(true);
         }, 300);
         
         // Refresh matches
@@ -230,15 +242,30 @@ export default function MatchesPage() {
         // Close modal
         setShowProposalModal(false);
         
-        // Show success
+        // Show success modal and redirect
         setTimeout(() => {
-          alert(`✅ ${data.message}`);
-          router.push('/trades');
+          setResultType('success');
+          setResultMessage(data.message || 'Multi-hop trade proposal sent to all users!');
+          setShowResultModal(true);
+          
+          // Redirect after modal shows
+          setTimeout(() => {
+            router.push('/trades');
+          }, 2000);
         }, 300);
       }
     } catch (error) {
       console.error('Error proposing trade:', error);
-      alert('❌ Failed to propose trade. Please try again.');
+      
+      // Close proposal modal
+      setShowProposalModal(false);
+      
+      // Show error modal
+      setTimeout(() => {
+        setResultType('error');
+        setResultMessage('Failed to propose trade. Please try again.');
+        setShowResultModal(true);
+      }, 300);
     } finally {
       setProposing(false);
     }
@@ -786,6 +813,14 @@ export default function MatchesPage() {
           }
           fairnessScore={selectedMatch?.fairTradeScore}
           loading={proposing}
+        />
+
+        {/* Trade Result Modal */}
+        <TradeResultModal
+          isOpen={showResultModal}
+          onClose={() => setShowResultModal(false)}
+          type={resultType}
+          message={resultMessage}
         />
       </div>
     </PageTransition>
