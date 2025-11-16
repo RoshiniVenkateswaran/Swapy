@@ -314,9 +314,9 @@ export default function TradesPage() {
       case 'completed':
         return { icon: '🎉', label: 'Completed', variant: 'success' as const };
       case 'declined':
-        return { icon: '❌', label: 'Declined', variant: 'danger' as const };
+        return { icon: '❌', label: 'Declined', variant: 'warning' as const };
       case 'rejected':
-        return { icon: '❌', label: 'Rejected', variant: 'danger' as const };
+        return { icon: '❌', label: 'Rejected', variant: 'warning' as const };
       default:
         return { icon: '➖', label: 'Unknown', variant: 'primary' as const };
     }
