@@ -6,6 +6,7 @@ import Navbar from '@/components/Navbar';
 import GlassCard from '@/components/ui/GlassCard';
 import PageTransition from '@/components/ui/PageTransition';
 import ActionButton from '@/components/ui/ActionButton';
+import ProfileUpdateModal from '@/components/ui/ProfileUpdateModal';
 import { motion } from 'framer-motion';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -25,6 +26,9 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editedProfile, setEditedProfile] = useState<Partial<UserProfile>>({});
+  const [showModal, setShowModal] = useState(false);
+  const [modalSuccess, setModalSuccess] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -90,15 +94,21 @@ export default function ProfilePage() {
 
     // Validation
     if (!editedProfile.displayName?.trim()) {
-      alert('Name cannot be empty');
+      setModalSuccess(false);
+      setModalMessage('Name cannot be empty. Please enter your name.');
+      setShowModal(true);
       return;
     }
     if (!editedProfile.phone?.trim()) {
-      alert('Phone number cannot be empty');
+      setModalSuccess(false);
+      setModalMessage('Phone number cannot be empty. Please enter your phone number.');
+      setShowModal(true);
       return;
     }
     if (!editedProfile.address?.trim()) {
-      alert('Campus address cannot be empty');
+      setModalSuccess(false);
+      setModalMessage('Campus address cannot be empty. Please enter your address.');
+      setShowModal(true);
       return;
     }
 
@@ -127,10 +137,18 @@ export default function ProfilePage() {
       setEditedProfile({});
       
       console.log('✅ Profile updated successfully');
-      alert('Profile updated successfully! ✅');
+      
+      // Show success modal
+      setModalSuccess(true);
+      setModalMessage('Your profile has been updated successfully!');
+      setShowModal(true);
     } catch (error) {
       console.error('❌ Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
+      
+      // Show error modal
+      setModalSuccess(false);
+      setModalMessage('Failed to update profile. Please try again.');
+      setShowModal(true);
     } finally {
       setSaving(false);
     }
@@ -414,6 +432,14 @@ export default function ProfilePage() {
             </GlassCard>
           )}
         </main>
+
+        {/* Update Modal */}
+        <ProfileUpdateModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          success={modalSuccess}
+          message={modalMessage}
+        />
       </div>
     </PageTransition>
   );
