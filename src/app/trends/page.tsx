@@ -331,28 +331,40 @@ export default function TrendsPage() {
 
   // Convert score (0-5) to star display
   const renderStars = (score: number): JSX.Element => {
-    const fullStars = Math.floor(score);
-    const hasHalfStar = score % 1 >= 0.5;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    // Ensure score is between 0 and 5
+    const normalizedScore = Math.max(0, Math.min(5, score));
+    // Round to nearest 0.5 for cleaner display
+    const roundedScore = Math.round(normalizedScore * 2) / 2;
+    const fullStars = Math.floor(roundedScore);
+    const hasHalfStar = (roundedScore % 1) >= 0.5;
+    const emptyStars = Math.max(0, 5 - fullStars - (hasHalfStar ? 1 : 0));
+
+    const stars = [];
+
+    // Add full stars
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <span key={`full-${i}`} className="text-yellow-500 text-lg">★</span>
+      );
+    }
+
+    // Add half star if needed
+    if (hasHalfStar) {
+      stars.push(
+        <span key="half" className="text-yellow-500 text-lg">⭐</span>
+      );
+    }
+
+    // Add empty stars
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <span key={`empty-${i}`} className="text-gray-300 text-lg">★</span>
+      );
+    }
 
     return (
-      <div className="flex items-center space-x-1">
-        {/* Full stars */}
-        {Array.from({ length: fullStars }).map((_, i) => (
-          <span key={`full-${i}`} className="text-yellow-400 text-xl">★</span>
-        ))}
-        {/* Half star */}
-        {hasHalfStar && (
-          <span className="text-yellow-400 text-xl">☆</span>
-        )}
-        {/* Empty stars */}
-        {Array.from({ length: emptyStars }).map((_, i) => (
-          <span key={`empty-${i}`} className="text-gray-300 text-xl">★</span>
-        ))}
-        {/* Score number */}
-        <span className="ml-2 text-sm font-semibold text-gray-700">
-          {score.toFixed(1)}/5.0
-        </span>
+      <div className="flex items-center space-x-0.5">
+        {stars}
       </div>
     );
   };
@@ -370,9 +382,6 @@ export default function TrendsPage() {
   const topDemanded = [...categoryScores].sort((a, b) => b.demandScore - a.demandScore).slice(0, 10);
   const mostScarce = [...categoryScores].sort((a, b) => b.scarcityScore - a.scarcityScore).slice(0, 10);
   const mostSupplied = [...categoryScores].sort((a, b) => b.supplyScore - a.supplyScore).slice(0, 10);
-  const fastestMoving = [...categoryScores].sort((a, b) => b.velocityScore - a.velocityScore).slice(0, 10);
-  const oversupplied = [...categoryScores].sort((a, b) => b.saturationScore - a.saturationScore).slice(0, 10);
-  const trendingUp = [...categoryScores].sort((a, b) => b.popularityScore - a.popularityScore).slice(0, 10);
 
   return (
     <PageTransition>
@@ -384,33 +393,20 @@ export default function TrendsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12"
+            className="mb-8"
           >
-            <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="text-6xl mb-4"
-            >
-              📊
-            </motion.div>
-            <h1 className="text-5xl font-bold mb-4">
-              <span className="gradient-text">Campus Trends Dashboard</span>
+            <h1 className="text-3xl font-bold mb-2 text-gray-900">
+              Campus Trends Dashboard
             </h1>
-            <p className="text-xl text-gray-700">
+            <p className="text-gray-600">
               Real-time analytics on trending items, categories, and market dynamics
             </p>
           </motion.div>
 
           {loading ? (
             <div className="text-center py-12">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                className="text-6xl mb-4"
-              >
-                📊
-              </motion.div>
-              <p className="text-gray-700">Loading trends data...</p>
+              <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-600 font-medium">Loading trends data...</p>
             </div>
           ) : (
             <div className="space-y-8">
@@ -421,11 +417,10 @@ export default function TrendsPage() {
                 transition={{ delay: 0.1 }}
               >
                 <GlassCard>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                    <span className="text-3xl mr-3">🔥</span>
+                  <h2 className="text-xl font-bold text-gray-900 mb-4 pb-3 border-b border-white/20">
                     Top Demanded Categories
                   </h2>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {topDemanded.length > 0 ? (
                       topDemanded.map((score, index) => (
                         <motion.div
@@ -433,11 +428,11 @@ export default function TrendsPage() {
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: index * 0.05 }}
-                          className="p-4 rounded-xl bg-white/30 backdrop-blur-sm flex items-center justify-between"
+                          className="p-3 rounded-lg bg-white/30 backdrop-blur-sm flex items-center justify-between hover:bg-white/40 transition-colors"
                         >
-                          <div className="flex items-center space-x-4 flex-1">
-                            <span className="text-xl font-bold text-gray-900 w-8">#{index + 1}</span>
-                            <h3 className="text-lg font-bold text-gray-900">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <span className="text-sm font-semibold text-gray-500 w-6">#{index + 1}</span>
+                            <h3 className="text-base font-semibold text-gray-900">
                               {formatCategoryName(score.category)}
                             </h3>
                           </div>
@@ -460,11 +455,10 @@ export default function TrendsPage() {
                   transition={{ delay: 0.2 }}
                 >
                   <GlassCard>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                      <span className="text-3xl mr-3">🌟</span>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4 pb-3 border-b border-white/20">
                       Most Scarce Categories
                     </h2>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {mostScarce.length > 0 ? (
                         mostScarce.map((score, index) => (
                           <motion.div
@@ -472,11 +466,11 @@ export default function TrendsPage() {
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.3 + index * 0.05 }}
-                            className="p-3 rounded-xl bg-white/30 backdrop-blur-sm flex items-center justify-between"
+                            className="p-3 rounded-lg bg-white/30 backdrop-blur-sm flex items-center justify-between hover:bg-white/40 transition-colors"
                           >
                             <div className="flex items-center space-x-3 flex-1">
-                              <span className="text-lg font-bold text-gray-900">#{index + 1}</span>
-                              <h4 className="font-semibold text-gray-900">
+                              <span className="text-sm font-semibold text-gray-500 w-6">#{index + 1}</span>
+                              <h4 className="text-sm font-semibold text-gray-900">
                                 {formatCategoryName(score.category)}
                               </h4>
                             </div>
@@ -497,11 +491,10 @@ export default function TrendsPage() {
                   transition={{ delay: 0.3 }}
                 >
                   <GlassCard>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                      <span className="text-3xl mr-3">📦</span>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4 pb-3 border-b border-white/20">
                       Most Supplied Categories
                     </h2>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {mostSupplied.length > 0 ? (
                         mostSupplied.map((score, index) => (
                           <motion.div
@@ -509,11 +502,11 @@ export default function TrendsPage() {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.4 + index * 0.05 }}
-                            className="p-3 rounded-xl bg-white/30 backdrop-blur-sm flex items-center justify-between"
+                            className="p-3 rounded-lg bg-white/30 backdrop-blur-sm flex items-center justify-between hover:bg-white/40 transition-colors"
                           >
                             <div className="flex items-center space-x-3 flex-1">
-                              <span className="text-lg font-bold text-gray-900">#{index + 1}</span>
-                              <h4 className="font-semibold text-gray-900">
+                              <span className="text-sm font-semibold text-gray-500 w-6">#{index + 1}</span>
+                              <h4 className="text-sm font-semibold text-gray-900">
                                 {formatCategoryName(score.category)}
                               </h4>
                             </div>
@@ -527,120 +520,6 @@ export default function TrendsPage() {
                   </GlassCard>
                 </motion.div>
               </div>
-
-              {/* Two Column Layout - Bottom */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Fastest Moving Categories */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <GlassCard>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                      <span className="text-3xl mr-3">⚡</span>
-                      Fastest Moving Categories
-                    </h2>
-                    <div className="space-y-3">
-                      {fastestMoving.length > 0 ? (
-                        fastestMoving.map((score, index) => (
-                          <motion.div
-                            key={score.category}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.5 + index * 0.05 }}
-                            className="p-3 rounded-xl bg-white/30 backdrop-blur-sm flex items-center justify-between"
-                          >
-                            <div className="flex items-center space-x-3 flex-1">
-                              <span className="text-lg font-bold text-gray-900">#{index + 1}</span>
-                              <h4 className="font-semibold text-gray-900">
-                                {formatCategoryName(score.category)}
-                              </h4>
-                            </div>
-                            {renderStars(score.velocityScore)}
-                          </motion.div>
-                        ))
-                      ) : (
-                        <p className="text-gray-600 text-center py-4">No data available</p>
-                      )}
-                    </div>
-                  </GlassCard>
-                </motion.div>
-
-                {/* Oversupplied Categories */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <GlassCard>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                      <span className="text-3xl mr-3">🧊</span>
-                      Oversupplied Categories
-                    </h2>
-                    <div className="space-y-3">
-                      {oversupplied.length > 0 ? (
-                        oversupplied.map((score, index) => (
-                          <motion.div
-                            key={score.category}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.6 + index * 0.05 }}
-                            className="p-3 rounded-xl bg-white/30 backdrop-blur-sm flex items-center justify-between"
-                          >
-                            <div className="flex items-center space-x-3 flex-1">
-                              <span className="text-lg font-bold text-gray-900">#{index + 1}</span>
-                              <h4 className="font-semibold text-gray-900">
-                                {formatCategoryName(score.category)}
-                              </h4>
-                            </div>
-                            {renderStars(score.saturationScore)}
-                          </motion.div>
-                        ))
-                      ) : (
-                        <p className="text-gray-600 text-center py-4">No data available</p>
-                      )}
-                    </div>
-                  </GlassCard>
-                </motion.div>
-              </div>
-
-              {/* Trending Up Categories */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <GlassCard>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                    <span className="text-3xl mr-3">📈</span>
-                    Trending Up Categories
-                  </h2>
-                  <div className="space-y-3">
-                    {trendingUp.length > 0 ? (
-                      trendingUp.map((score, index) => (
-                        <motion.div
-                          key={score.category}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.7 + index * 0.05 }}
-                          className="p-4 rounded-xl bg-white/30 backdrop-blur-sm flex items-center justify-between"
-                        >
-                          <div className="flex items-center space-x-4 flex-1">
-                            <span className="text-xl font-bold text-gray-900 w-8">#{index + 1}</span>
-                            <h3 className="text-lg font-bold text-gray-900">
-                              {formatCategoryName(score.category)}
-                            </h3>
-                          </div>
-                          {renderStars(score.popularityScore)}
-                        </motion.div>
-                      ))
-                    ) : (
-                      <p className="text-gray-600 text-center py-8">No data available</p>
-                    )}
-                  </div>
-                </GlassCard>
-              </motion.div>
             </div>
           )}
         </main>
