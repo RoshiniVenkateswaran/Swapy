@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const item1 = { itemId: item1Doc.id, ...item1Doc.data() };
-      const item2 = { itemId: item2Doc.id, ...item2Doc.data() };
+      const item1 = { itemId: item1Doc.id, ...item1Doc.data() } as any;
+      const item2 = { itemId: item2Doc.id, ...item2Doc.data() } as any;
 
       // Check if items are still available
       if (item1.status !== 'available' || item2.status !== 'available') {
