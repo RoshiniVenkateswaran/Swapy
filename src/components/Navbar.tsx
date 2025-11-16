@@ -76,6 +76,16 @@ export default function Navbar() {
                       </p>
                     </div>
                     
+                    {/* Profile Link */}
+                    <Link href="/profile">
+                      <button
+                        className="w-full px-4 py-3 text-left text-gray-900 hover:bg-blue-50 transition-colors duration-200 flex items-center space-x-2"
+                      >
+                        <span>👤</span>
+                        <span className="text-sm font-medium">View Profile</span>
+                      </button>
+                    </Link>
+                    
                     {/* Logout Button */}
                     <button
                       onClick={handleLogout}

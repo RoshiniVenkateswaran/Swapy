@@ -7,18 +7,41 @@ import GlassCard from '@/components/ui/GlassCard';
 import GradientBadge from '@/components/ui/GradientBadge';
 import ActionButton from '@/components/ui/ActionButton';
 import PageTransition from '@/components/ui/PageTransition';
+import TradeActionModal from '@/components/ui/TradeActionModal';
+import TradeResultModal from '@/components/ui/TradeResultModal';
 import { motion } from 'framer-motion';
-import { collection, query, where, getDocs, or } from 'firebase/firestore';
+import { collection, query, where, getDocs, or, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
 
+interface Item {
+  itemId: string;
+  name: string;
+  imageUrl: string;
+  estimatedValue: number;
+  category: string;
+  userId: string;
+}
+
+interface UserContact {
+  displayName: string;
+  email: string;
+  phone: string;
+  address: string;
+}
+
 interface Trade {
   tradeId: string;
-  item1: any;
-  item2: any;
+  item1Id?: string;
+  item2Id?: string;
+  item1?: Item;
+  item2?: Item;
   status: string;
   createdAt: any;
   usersInvolved: string[];
+  proposerId?: string;
+  user1Contact?: UserContact;
+  user2Contact?: UserContact;
 }
 
 export default function TradesPage() {
@@ -27,6 +50,15 @@ export default function TradesPage() {
   const [completedTrades, setCompletedTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
+  const [processingTradeId, setProcessingTradeId] = useState<string | null>(null);
+  
+  // Modal states
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [actionType, setActionType] = useState<'accept' | 'decline'>('accept');
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultMessage, setResultMessage] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -39,6 +71,8 @@ export default function TradesPage() {
     setLoading(true);
 
     try {
+      console.log('🔍 Loading trades for user:', user.uid);
+      
       const tradesRef = collection(db, 'trades');
       const q = query(
         tradesRef,
@@ -48,24 +82,160 @@ export default function TradesPage() {
       );
       const snapshot = await getDocs(q);
 
+      console.log('📊 Found trades:', snapshot.size);
+
       const pending: Trade[] = [];
       const completed: Trade[] = [];
 
-      snapshot.forEach((doc) => {
-        const trade = { tradeId: doc.id, ...doc.data() } as Trade;
-        if (trade.status === 'pending') {
-          pending.push(trade);
-        } else if (trade.status === 'completed') {
-          completed.push(trade);
+      // Fetch each trade and its item details
+      for (const tradeDoc of snapshot.docs) {
+        const tradeData = { tradeId: tradeDoc.id, ...tradeDoc.data() } as Trade;
+        
+        console.log('📦 Processing trade:', tradeData.tradeId, tradeData);
+
+        // Fetch item details if we have item IDs
+        if (tradeData.item1Id) {
+          try {
+            const item1Doc = await getDoc(doc(db, 'items', tradeData.item1Id));
+            if (item1Doc.exists()) {
+              tradeData.item1 = { itemId: item1Doc.id, ...item1Doc.data() } as Item;
+              console.log('✅ Item 1 loaded:', tradeData.item1.name);
+            } else {
+              console.warn('⚠️ Item 1 not found:', tradeData.item1Id);
+            }
+          } catch (error) {
+            console.error('❌ Error loading item 1:', error);
+          }
         }
-      });
+
+        if (tradeData.item2Id) {
+          try {
+            const item2Doc = await getDoc(doc(db, 'items', tradeData.item2Id));
+            if (item2Doc.exists()) {
+              tradeData.item2 = { itemId: item2Doc.id, ...item2Doc.data() } as Item;
+              console.log('✅ Item 2 loaded:', tradeData.item2.name);
+            } else {
+              console.warn('⚠️ Item 2 not found:', tradeData.item2Id);
+            }
+          } catch (error) {
+            console.error('❌ Error loading item 2:', error);
+          }
+        }
+
+        // Fetch user contact details for completed trades
+        if (tradeData.status === 'completed' && tradeData.usersInvolved.length === 2) {
+          try {
+            const [userId1, userId2] = tradeData.usersInvolved;
+            
+            const user1Doc = await getDoc(doc(db, 'users', userId1));
+            if (user1Doc.exists()) {
+              const user1Data = user1Doc.data();
+              tradeData.user1Contact = {
+                displayName: user1Data.displayName || 'Unknown',
+                email: user1Data.email || '',
+                phone: user1Data.phone || 'Not provided',
+                address: user1Data.address || 'Not provided',
+              };
+            }
+
+            const user2Doc = await getDoc(doc(db, 'users', userId2));
+            if (user2Doc.exists()) {
+              const user2Data = user2Doc.data();
+              tradeData.user2Contact = {
+                displayName: user2Data.displayName || 'Unknown',
+                email: user2Data.email || '',
+                phone: user2Data.phone || 'Not provided',
+                address: user2Data.address || 'Not provided',
+              };
+            }
+
+            console.log('✅ Contact details loaded for completed trade');
+          } catch (error) {
+            console.error('❌ Error loading contact details:', error);
+          }
+        }
+
+        // Categorize by status
+        if (tradeData.status === 'pending') {
+          pending.push(tradeData);
+        } else if (tradeData.status === 'completed') {
+          completed.push(tradeData);
+        }
+      }
+
+      console.log('✅ Pending trades:', pending.length);
+      console.log('✅ Completed trades:', completed.length);
 
       setPendingTrades(pending);
       setCompletedTrades(completed);
     } catch (error) {
-      console.error('Error loading trades:', error);
+      console.error('❌ Error loading trades:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAcceptTrade = (trade: Trade) => {
+    setSelectedTrade(trade);
+    setActionType('accept');
+    setShowActionModal(true);
+  };
+
+  const handleDeclineTrade = (trade: Trade) => {
+    setSelectedTrade(trade);
+    setActionType('decline');
+    setShowActionModal(true);
+  };
+
+  const confirmTradeAction = async () => {
+    if (!user || !selectedTrade) return;
+
+    setProcessingTradeId(selectedTrade.tradeId);
+
+    try {
+      const endpoint = actionType === 'accept' ? '/api/accept-trade' : '/api/decline-trade';
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tradeId: selectedTrade.tradeId,
+          userId: user.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || `Failed to ${actionType} trade`);
+      }
+
+      const data = await response.json();
+      
+      // Close action modal
+      setShowActionModal(false);
+      
+      // Show success result
+      setResultSuccess(true);
+      setResultMessage(data.message);
+      setShowResultModal(true);
+
+      // Reload trades after a short delay
+      setTimeout(async () => {
+        await loadTrades();
+      }, 500);
+
+    } catch (error: any) {
+      console.error(`Error ${actionType}ing trade:`, error);
+      
+      // Close action modal
+      setShowActionModal(false);
+      
+      // Show error result
+      setResultSuccess(false);
+      setResultMessage(error.message || `Failed to ${actionType} trade. Please try again.`);
+      setShowResultModal(true);
+    } finally {
+      setProcessingTradeId(null);
     }
   };
 
@@ -77,8 +247,10 @@ export default function TradesPage() {
         return { icon: '✅', label: 'Accepted', variant: 'success' as const };
       case 'completed':
         return { icon: '🎉', label: 'Completed', variant: 'success' as const };
+      case 'declined':
+        return { icon: '❌', label: 'Declined', variant: 'danger' as const };
       case 'rejected':
-        return { icon: '❌', label: 'Rejected', variant: 'primary' as const };
+        return { icon: '❌', label: 'Rejected', variant: 'danger' as const };
       default:
         return { icon: '➖', label: 'Unknown', variant: 'primary' as const };
     }
@@ -112,19 +284,25 @@ export default function TradesPage() {
               <p className="text-xs text-gray-600 font-semibold">
                 {isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
               </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden">
-                <Image
-                  src={trade.item1?.imageUrl || '/placeholder.png'}
-                  alt={trade.item1?.name || 'Item'}
-                  fill
-                  className="object-cover"
-                />
+              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
+                {trade.item1?.imageUrl ? (
+                  <Image
+                    src={trade.item1.imageUrl}
+                    alt={trade.item1?.name || 'Item'}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
+                    📦
+                  </div>
+                )}
               </div>
               <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item1?.name}
+                {trade.item1?.name || 'Unknown Item'}
               </p>
               <p className="text-xs text-gray-700">
-                ${trade.item1?.estimatedValue}
+                ${trade.item1?.estimatedValue || 0}
               </p>
             </div>
 
@@ -144,19 +322,25 @@ export default function TradesPage() {
               <p className="text-xs text-gray-600 font-semibold">
                 {!isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
               </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden">
-                <Image
-                  src={trade.item2?.imageUrl || '/placeholder.png'}
-                  alt={trade.item2?.name || 'Item'}
-                  fill
-                  className="object-cover"
-                />
+              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
+                {trade.item2?.imageUrl ? (
+                  <Image
+                    src={trade.item2.imageUrl}
+                    alt={trade.item2?.name || 'Item'}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
+                    📦
+                  </div>
+                )}
               </div>
               <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item2?.name}
+                {trade.item2?.name || 'Unknown Item'}
               </p>
               <p className="text-xs text-gray-700">
-                ${trade.item2?.estimatedValue}
+                ${trade.item2?.estimatedValue || 0}
               </p>
             </div>
           </div>
@@ -165,28 +349,94 @@ export default function TradesPage() {
           {trade.status === 'pending' && (
             <div className="flex gap-3">
               <ActionButton
-                variant="success"
-                size="sm"
-                className="flex-1"
-                onClick={() => console.log('Accept trade')}
+                onClick={() => handleAcceptTrade(trade)}
+                loading={processingTradeId === trade.tradeId}
+                disabled={processingTradeId !== null}
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white"
               >
                 ✅ Accept
               </ActionButton>
-              <ActionButton
-                variant="ghost"
-                size="sm"
-                className="flex-1"
-                onClick={() => console.log('Reject trade')}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleDeclineTrade(trade)}
+                disabled={processingTradeId !== null}
+                className="flex-1 px-4 py-3 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ❌ Reject
-              </ActionButton>
+                ❌ Decline
+              </motion.button>
+            </div>
+          )}
+          
+          {trade.status === 'declined' && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-xl text-center text-sm">
+              ❌ Trade was declined
             </div>
           )}
 
           {trade.status === 'completed' && (
-            <div className="bg-success/20 border border-success/50 text-success px-4 py-2 rounded-xl text-center text-sm">
-              🎉 Trade completed successfully!
-            </div>
+            <>
+              <div className="bg-success/20 border border-success/50 text-success px-4 py-2 rounded-xl text-center text-sm mb-4">
+                🎉 Trade completed successfully!
+              </div>
+
+              {/* Contact Information */}
+              {trade.user1Contact && trade.user2Contact && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                  <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    📞 Contact Information
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    {/* User 1 Contact */}
+                    <div className="bg-white rounded-lg p-3">
+                      <p className="font-semibold text-gray-900 mb-2">
+                        {trade.user1Contact.displayName}
+                      </p>
+                      <div className="space-y-1 text-xs text-gray-700">
+                        <p className="flex items-start gap-2">
+                          <span className="text-blue-600">📧</span>
+                          <span className="break-all">{trade.user1Contact.email}</span>
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <span className="text-green-600">📱</span>
+                          <span>{trade.user1Contact.phone}</span>
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <span className="text-purple-600">🏠</span>
+                          <span>{trade.user1Contact.address}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* User 2 Contact */}
+                    <div className="bg-white rounded-lg p-3">
+                      <p className="font-semibold text-gray-900 mb-2">
+                        {trade.user2Contact.displayName}
+                      </p>
+                      <div className="space-y-1 text-xs text-gray-700">
+                        <p className="flex items-start gap-2">
+                          <span className="text-blue-600">📧</span>
+                          <span className="break-all">{trade.user2Contact.email}</span>
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <span className="text-green-600">📱</span>
+                          <span>{trade.user2Contact.phone}</span>
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <span className="text-purple-600">🏠</span>
+                          <span>{trade.user2Contact.address}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-600 text-center mt-2">
+                    💡 Contact each other to arrange the item exchange
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </GlassCard>
       </motion.div>
@@ -361,6 +611,45 @@ export default function TradesPage() {
             </motion.div>
           )}
         </main>
+
+        {/* Trade Action Modal (Accept/Decline Confirmation) */}
+        <TradeActionModal
+          isOpen={showActionModal}
+          onClose={() => setShowActionModal(false)}
+          onConfirm={confirmTradeAction}
+          action={actionType}
+          item1={
+            selectedTrade?.item1
+              ? {
+                  name: selectedTrade.item1.name,
+                  imageUrl: selectedTrade.item1.imageUrl,
+                  estimatedValue: selectedTrade.item1.estimatedValue,
+                  category: selectedTrade.item1.category,
+                }
+              : undefined
+          }
+          item2={
+            selectedTrade?.item2
+              ? {
+                  name: selectedTrade.item2.name,
+                  imageUrl: selectedTrade.item2.imageUrl,
+                  estimatedValue: selectedTrade.item2.estimatedValue,
+                  category: selectedTrade.item2.category,
+                }
+              : undefined
+          }
+          loading={processingTradeId === selectedTrade?.tradeId}
+          isMultiHop={!selectedTrade?.item1Id || !selectedTrade?.item2Id}
+          chainLength={selectedTrade?.usersInvolved?.length || 2}
+        />
+
+        {/* Trade Result Modal (Success/Error) */}
+        <TradeResultModal
+          isOpen={showResultModal}
+          onClose={() => setShowResultModal(false)}
+          success={resultSuccess}
+          message={resultMessage}
+        />
       </div>
     </PageTransition>
   );

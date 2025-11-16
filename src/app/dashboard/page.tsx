@@ -79,27 +79,39 @@ export default function DashboardPage() {
 
       // Fetch trades separately (don't let it block items display)
       try {
-        // Fetch pending trades
-        const pendingTradesQuery = query(
+        // Fetch all trades involving this user
+        const userTradesQuery = query(
           collection(db, 'trades'),
-          where('status', '==', 'pending')
+          where('usersInvolved', 'array-contains', user.uid)
         );
-        const pendingSnapshot = await getDocs(pendingTradesQuery);
+        const tradesSnapshot = await getDocs(userTradesQuery);
         
-        // Fetch completed trades
-        const completedTradesQuery = query(
-          collection(db, 'trades'),
-          where('status', '==', 'completed')
-        );
-        const completedSnapshot = await getDocs(completedTradesQuery);
+        // Filter by status in memory
+        let pendingCount = 0;
+        let completedCount = 0;
+        
+        tradesSnapshot.forEach((doc) => {
+          const tradeData = doc.data();
+          if (tradeData.status === 'pending') {
+            pendingCount++;
+          } else if (tradeData.status === 'completed') {
+            completedCount++;
+          }
+        });
+
+        console.log('📊 Dashboard trades for user:', {
+          pending: pendingCount,
+          completed: completedCount,
+          total: tradesSnapshot.size
+        });
 
         setStats(prev => ({
           ...prev,
-          pendingTrades: pendingSnapshot.size,
-          completedTrades: completedSnapshot.size,
+          pendingTrades: pendingCount,
+          completedTrades: completedCount,
         }));
       } catch (error) {
-        console.warn('⚠️ Error fetching trades (this is OK, trades collection may need rules update):', error);
+        console.warn('⚠️ Error fetching trades:', error);
         // Don't block the UI - trades stats will just show 0
       }
 
