@@ -37,7 +37,7 @@ export default function Home() {
     },
     {
       icon: '🗺️',
-      title: 'Campus Heatmap',
+      title: 'Campus Trends',
       description: 'Real-time demand analytics',
     },
   ];

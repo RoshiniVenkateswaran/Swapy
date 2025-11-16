@@ -9,6 +9,10 @@ import { Timestamp } from 'firebase-admin/firestore';
  * Types: 1-to-1 trade or multi-hop chain
  */
 
+// Force dynamic rendering - don't pre-render during build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     const { type, proposerId, item1Id, item2Id, chainData } = await request.json();

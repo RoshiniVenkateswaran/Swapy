@@ -163,22 +163,22 @@ const CATEGORIES = [
 
 const PRICE_TABLE = {
   electronics: {
-    min: 30,
-    max: 350,
+    min: 15,
+    max: 200,
     subcategories: {
-      headphones: { min: 20, max: 150 },
-      earbuds: { min: 10, max: 80 },
-      speakers: { min: 30, max: 250 },
-      keyboard: { min: 10, max: 80 },
-      mouse: { min: 5, max: 50 },
-      monitor: { min: 40, max: 250 },
-      printer: { min: 50, max: 200 },
-      calculator: { min: 10, max: 70 },
-      powerbank: { min: 10, max: 60 },
-      chargers: { min: 5, max: 40 },
-      smartwatch: { min: 30, max: 180 },
-      tablet: { min: 40, max: 220 },
-      gaming_accessory: { min: 20, max: 120 }
+      headphones: { min: 15, max: 80 },
+      earbuds: { min: 8, max: 50 },
+      speakers: { min: 20, max: 100 },
+      keyboard: { min: 8, max: 60 },
+      mouse: { min: 5, max: 35 },
+      monitor: { min: 30, max: 150 },
+      printer: { min: 30, max: 120 },
+      calculator: { min: 8, max: 50 },
+      powerbank: { min: 8, max: 40 },
+      chargers: { min: 5, max: 25 },
+      smartwatch: { min: 25, max: 100 },
+      tablet: { min: 30, max: 150 },
+      gaming_accessory: { min: 15, max: 80 }
     }
   },
   furniture: {
@@ -235,14 +235,14 @@ const PRICE_TABLE = {
   },
   clothing: {
     min: 5,
-    max: 120,
+    max: 80,
     subcategories: {
-      tshirt: { min: 5, max: 25 },
-      hoodie: { min: 15, max: 60 },
-      jacket: { min: 20, max: 120 },
-      sweater: { min: 10, max: 50 },
-      pants: { min: 10, max: 60 },
-      sportswear: { min: 10, max: 60 }
+      tshirt: { min: 5, max: 20 },
+      hoodie: { min: 10, max: 45 },
+      jacket: { min: 15, max: 80 },
+      sweater: { min: 8, max: 40 },
+      pants: { min: 8, max: 45 },
+      sportswear: { min: 8, max: 45 }
     }
   },
   bags: {
@@ -302,20 +302,38 @@ function getAgeFactor(ageValue: number, ageUnit: 'years' | 'months'): number {
 }
 
 // Brand tier boost with automatic premium brand recognition
-function getBrandBoost(brandTier?: string, brandName?: string): number {
-  // Auto-upgrade known premium brands regardless of LLM assessment
-  const premiumBrands = ['adidas', 'nike', 'apple', 'sony', 'samsung', 'dell', 'hp', 'lenovo'];
+// IMPORTANT: Brand boost should be more conservative and category-aware
+function getBrandBoost(brandTier?: string, brandName?: string, category?: string): number {
   const brand = brandName?.toLowerCase() || '';
+  const cat = category?.toLowerCase() || '';
   
-  if (premiumBrands.includes(brand)) {
-    // Known premium brands get premium boost even if LLM says "mid"
-    return 0.15;
+  // Premium electronics brands (only for electronics)
+  const premiumElectronicsBrands = ['apple', 'sony', 'samsung', 'dell', 'hp', 'lenovo'];
+  
+  // Premium fashion brands (only for clothing/bags/accessories)
+  const premiumFashionBrands = ['adidas', 'nike'];
+  
+  // Apply brand boost only to relevant categories
+  if (cat === 'electronics' || cat === 'appliances') {
+    if (premiumElectronicsBrands.includes(brand)) {
+      return 0.10; // Reduced from 0.15
+    }
+  } else if (cat === 'clothing' || cat === 'bags' || cat === 'sports' || cat === 'accessories') {
+    if (premiumFashionBrands.includes(brand)) {
+      return 0.08; // Reduced from 0.15 - fashion items get smaller boost
+    }
   }
   
+  // Fall back to LLM assessment
   if (!brandTier) return 0;
   const tier = brandTier.toLowerCase();
-  if (tier === 'premium') return 0.15;
-  if (tier === 'mid') return 0.05;
+  if (tier === 'premium') {
+    // Category-aware premium boost
+    if (cat === 'electronics' || cat === 'appliances') return 0.10;
+    if (cat === 'clothing' || cat === 'bags' || cat === 'sports') return 0.08;
+    return 0.06; // Other categories get smaller boost
+  }
+  if (tier === 'mid') return 0.03; // Reduced from 0.05
   return 0; // low/unknown
 }
 
@@ -453,15 +471,15 @@ function calculateEstimatedValue(
   const conditionMultiplier = getConditionMultiplierFromScore(conditionScore);
   const base = min + (max - min) * conditionMultiplier;
 
-  // 2. Apply age factor (reduced impact since conditionScore already accounts for age wear)
-  // Note: Age still affects value independently for depreciation, but at a lower rate
+  // 2. Apply age factor (more significant impact for realistic depreciation)
+  // Age depreciation should be stronger for used items
   const ageFactor = getAgeFactor(ageValue || 0, ageUnit || 'years');
-  // Reduce age impact since conditionScore already includes age-based wear adjustments
-  const adjustedAgeFactor = 1 - (1 - ageFactor) * 0.5; // Halve the age depreciation impact
+  // Apply age depreciation more strongly (60% of age impact, not 50%)
+  const adjustedAgeFactor = 1 - (1 - ageFactor) * 0.6;
   const valueAfterAge = base * adjustedAgeFactor;
 
-  // 3. Apply brand boost (with automatic premium brand recognition)
-  const brandBoost = getBrandBoost(brandTier, brandName);
+  // 3. Apply brand boost (with automatic premium brand recognition, category-aware)
+  const brandBoost = getBrandBoost(brandTier, brandName, normalizedCategory);
   const valueAfterBrand = valueAfterAge * (1 + brandBoost);
 
   // 4. Apply attribute boosts
@@ -471,9 +489,12 @@ function calculateEstimatedValue(
   // 5. Round final value
   let finalValue = Math.round(valueAfterAttributes);
 
-  // 6. Clamp final value
-  const absoluteMin = categoryData.min * 0.5;
-  const absoluteMax = categoryData.max * 1.3;
+  // 6. Clamp final value (more conservative - prevent excessive values)
+  // Use subcategory max if available, otherwise category max
+  const maxForClamp = max || categoryData.max;
+  const minForClamp = min || categoryData.min;
+  const absoluteMin = minForClamp * 0.4; // Allow lower minimum
+  const absoluteMax = maxForClamp * 1.15; // Reduced from 1.3 - more conservative max
   finalValue = Math.max(absoluteMin, Math.min(absoluteMax, finalValue));
 
   return finalValue;
