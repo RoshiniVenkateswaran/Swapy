@@ -53,47 +53,91 @@ export async function POST(request: NextRequest) {
     }
 
     if (trade.type === '1-to-1') {
-      // 1-to-1 Trade: Accept and complete immediately
+      // 1-to-1 Trade: Both users must accept
       console.log('🤝 Processing 1-to-1 trade acceptance');
 
-      // Update trade status
-      await tradeRef.update({
-        status: 'completed',
-        acceptedBy: [userId],
-        acceptedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      const acceptedBy = trade.acceptedBy || [];
 
-      // Update both items to "traded"
-      const updates = [];
-      
-      if (trade.item1Id) {
-        updates.push(
-          adminDb.collection('items').doc(trade.item1Id).update({
-            status: 'traded',
-            tradedAt: FieldValue.serverTimestamp(),
-          })
-        );
+      // Check if user already accepted
+      if (acceptedBy.includes(userId)) {
+        return NextResponse.json({
+          success: true,
+          message: 'You have already accepted this trade.',
+          tradeStatus: 'pending',
+        });
       }
 
-      if (trade.item2Id) {
-        updates.push(
-          adminDb.collection('items').doc(trade.item2Id).update({
-            status: 'traded',
-            tradedAt: FieldValue.serverTimestamp(),
-          })
-        );
+      // Add user to acceptedBy
+      acceptedBy.push(userId);
+
+      // Check if both users accepted (1-to-1 has exactly 2 users)
+      const allUsersAccepted = trade.usersInvolved.every((uid: string) =>
+        acceptedBy.includes(uid)
+      );
+
+      if (allUsersAccepted) {
+        // Both users accepted - complete the trade!
+        console.log('🎉 Both users accepted! Completing 1-to-1 trade...');
+
+        await tradeRef.update({
+          status: 'completed',
+          acceptedBy,
+          acceptedAt: FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        // Update both items to "traded"
+        const updates = [];
+        
+        if (trade.item1Id) {
+          updates.push(
+            adminDb.collection('items').doc(trade.item1Id).update({
+              status: 'traded',
+              tradedAt: FieldValue.serverTimestamp(),
+            })
+          );
+        }
+
+        if (trade.item2Id) {
+          updates.push(
+            adminDb.collection('items').doc(trade.item2Id).update({
+              status: 'traded',
+              tradedAt: FieldValue.serverTimestamp(),
+            })
+          );
+        }
+
+        await Promise.all(updates);
+
+        console.log('✅ 1-to-1 trade completed!');
+
+        return NextResponse.json({
+          success: true,
+          message: '🎉 Both users accepted! Trade completed!',
+          tradeStatus: 'completed',
+          allAccepted: true,
+        });
+
+      } else {
+        // Partial acceptance (1 out of 2)
+        await tradeRef.update({
+          acceptedBy,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        const remaining = trade.usersInvolved.length - acceptedBy.length;
+
+        console.log(`⏳ Partial acceptance: ${acceptedBy.length}/${trade.usersInvolved.length}`);
+
+        return NextResponse.json({
+          success: true,
+          message: `✅ You accepted! Waiting for the other user to accept.`,
+          tradeStatus: 'pending',
+          acceptedCount: acceptedBy.length,
+          totalCount: trade.usersInvolved.length,
+        });
       }
-
-      await Promise.all(updates);
-
-      console.log('✅ 1-to-1 trade completed!');
-
-      return NextResponse.json({
-        success: true,
-        message: 'Trade accepted! 🎉 Both items are now marked as traded.',
-        tradeStatus: 'completed',
-      });
 
     } else if (trade.type === 'multi-hop') {
       // Multi-hop: Add to acceptedBy array

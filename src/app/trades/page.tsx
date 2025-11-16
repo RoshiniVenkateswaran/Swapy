@@ -672,8 +672,8 @@ export default function TradesPage() {
           {/* Actions */}
           {trade.status === 'pending' && (
             <>
-              {/* Check if user has already accepted (for multi-hop) */}
-              {trade.type === 'multi-hop' && trade.acceptedBy?.includes(user?.uid || '') ? (
+              {/* Check if user has already accepted (for both 1-to-1 and multi-hop) */}
+              {trade.acceptedBy?.includes(user?.uid || '') ? (
                 // User already accepted - show waiting state only
                 <div className="bg-gradient-to-r from-blue-100 to-green-100 border-2 border-blue-300 rounded-xl p-4 text-center">
                   <div className="text-3xl mb-2">⏳</div>
@@ -683,6 +683,23 @@ export default function TradesPage() {
                   <p className="text-xs text-blue-700">
                     Waiting for {trade.usersInvolved.length - (trade.acceptedBy?.length || 0)} other user{(trade.usersInvolved.length - (trade.acceptedBy?.length || 0)) > 1 ? 's' : ''} to accept
                   </p>
+                  {/* Show acceptance progress for all trades */}
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-700">Accepted:</span>
+                      <span className="font-bold text-green-600">
+                        {trade.acceptedBy?.length || 0} / {trade.usersInvolved.length}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${((trade.acceptedBy?.length || 0) / trade.usersInvolved.length) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 // User hasn't accepted yet - show action buttons
