@@ -30,17 +30,17 @@ export const PRICE_TABLE: Record<string, { min: number; max: number }> = {
   other: { min: 10, max: 100 },
 };
 
-// Item categories
+// Item categories (matching price table structure)
 export const ITEM_CATEGORIES = [
-  'Electronics',
-  'Furniture',
-  'Textbooks',
-  'Clothing',
-  'Sports Equipment',
-  'Kitchen',
-  'Bedding',
-  'Decorations',
-  'Other',
+  'electronics',
+  'furniture',
+  'books',
+  'kitchen',
+  'appliances',
+  'clothing',
+  'bags',
+  'sports',
+  'accessories',
 ];
 
 // Trade status
