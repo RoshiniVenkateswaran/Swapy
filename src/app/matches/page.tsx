@@ -155,6 +155,77 @@ export default function MatchesPage() {
     }
   };
 
+  const handleProposeTrade = async (match: Match) => {
+    if (!user || !selectedItem) return;
+
+    const confirmed = confirm(
+      `Propose trade:\nYour "${selectedItem.name}" for their "${match.item2.name}"?\n\nFairness Score: ${match.fairTradeScore}%`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch('/api/propose-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: '1-to-1',
+          proposerId: user.uid,
+          item1Id: selectedItem.itemId,
+          item2Id: match.item2.itemId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to propose trade');
+      }
+
+      const data = await response.json();
+      alert(`✅ ${data.message}`);
+      
+      // Refresh matches to update status
+      handleSelectItem(selectedItem);
+    } catch (error) {
+      console.error('Error proposing trade:', error);
+      alert('❌ Failed to propose trade. Please try again.');
+    }
+  };
+
+  const handleProposeChain = async (chain: TradeChain) => {
+    if (!user) return;
+
+    const confirmed = confirm(
+      `Propose ${chain.chainLength}-way trade chain?\n\nFairness Score: ${chain.chainFairnessScore}%\n\nAll ${chain.chainLength} users will be notified.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch('/api/propose-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'multi-hop',
+          proposerId: user.uid,
+          chainData: chain,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to propose chain trade');
+      }
+
+      const data = await response.json();
+      alert(`✅ ${data.message}`);
+      
+      // Could refresh or navigate to trades page
+      router.push('/trades');
+    } catch (error) {
+      console.error('Error proposing chain:', error);
+      alert('❌ Failed to propose chain trade. Please try again.');
+    }
+  };
+
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600';
     if (score >= 60) return 'text-blue-600';
@@ -455,7 +526,10 @@ export default function MatchesPage() {
 
                                   {/* Action Buttons */}
                                   <div className="flex gap-3">
-                                    <ActionButton className="flex-1">
+                                    <ActionButton 
+                                      className="flex-1"
+                                      onClick={() => handleProposeTrade(match)}
+                                    >
                                       🤝 Propose Trade
                                     </ActionButton>
                                     <motion.button
@@ -618,7 +692,10 @@ export default function MatchesPage() {
 
                                   {/* Action */}
                                   <div className="flex justify-center">
-                                    <ActionButton className="px-8">
+                                    <ActionButton 
+                                      className="px-8"
+                                      onClick={() => handleProposeChain(chain)}
+                                    >
                                       🚀 Propose Chain Trade
                                     </ActionButton>
                                   </div>
