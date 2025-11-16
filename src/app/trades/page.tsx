@@ -32,10 +32,18 @@ interface UserContact {
 
 interface Trade {
   tradeId: string;
+  type?: '1-to-1' | 'multi-hop';
   item1Id?: string;
   item2Id?: string;
   item1?: Item;
   item2?: Item;
+  chainData?: {
+    items: Item[];
+    userIds: string[];
+    chainLength: number;
+    chainFairnessScore: number;
+    reasoning?: string;
+  };
   status: string;
   createdAt: any;
   usersInvolved: string[];
@@ -91,35 +99,43 @@ export default function TradesPage() {
       for (const tradeDoc of snapshot.docs) {
         const tradeData = { tradeId: tradeDoc.id, ...tradeDoc.data() } as Trade;
         
-        console.log('📦 Processing trade:', tradeData.tradeId, tradeData);
+        console.log('📦 Processing trade:', tradeData.tradeId, '| Type:', tradeData.type || '1-to-1');
 
-        // Fetch item details if we have item IDs
-        if (tradeData.item1Id) {
-          try {
-            const item1Doc = await getDoc(doc(db, 'items', tradeData.item1Id));
-            if (item1Doc.exists()) {
-              tradeData.item1 = { itemId: item1Doc.id, ...item1Doc.data() } as Item;
-              console.log('✅ Item 1 loaded:', tradeData.item1.name);
-            } else {
-              console.warn('⚠️ Item 1 not found:', tradeData.item1Id);
+        // Handle 1-to-1 trades
+        if (tradeData.type === '1-to-1' || (!tradeData.type && tradeData.item1Id)) {
+          // Fetch item details if we have item IDs
+          if (tradeData.item1Id) {
+            try {
+              const item1Doc = await getDoc(doc(db, 'items', tradeData.item1Id));
+              if (item1Doc.exists()) {
+                tradeData.item1 = { itemId: item1Doc.id, ...item1Doc.data() } as Item;
+                console.log('✅ Item 1 loaded:', tradeData.item1.name);
+              } else {
+                console.warn('⚠️ Item 1 not found:', tradeData.item1Id);
+              }
+            } catch (error) {
+              console.error('❌ Error loading item 1:', error);
             }
-          } catch (error) {
-            console.error('❌ Error loading item 1:', error);
           }
-        }
 
-        if (tradeData.item2Id) {
-          try {
-            const item2Doc = await getDoc(doc(db, 'items', tradeData.item2Id));
-            if (item2Doc.exists()) {
-              tradeData.item2 = { itemId: item2Doc.id, ...item2Doc.data() } as Item;
-              console.log('✅ Item 2 loaded:', tradeData.item2.name);
-            } else {
-              console.warn('⚠️ Item 2 not found:', tradeData.item2Id);
+          if (tradeData.item2Id) {
+            try {
+              const item2Doc = await getDoc(doc(db, 'items', tradeData.item2Id));
+              if (item2Doc.exists()) {
+                tradeData.item2 = { itemId: item2Doc.id, ...item2Doc.data() } as Item;
+                console.log('✅ Item 2 loaded:', tradeData.item2.name);
+              } else {
+                console.warn('⚠️ Item 2 not found:', tradeData.item2Id);
+              }
+            } catch (error) {
+              console.error('❌ Error loading item 2:', error);
             }
-          } catch (error) {
-            console.error('❌ Error loading item 2:', error);
           }
+        } 
+        // Handle multi-hop trades
+        else if (tradeData.type === 'multi-hop' && tradeData.chainData) {
+          console.log('🔄 Multi-hop trade with', tradeData.chainData.items?.length || 0, 'items');
+          // chainData already contains item details, no need to fetch
         }
 
         // Fetch user contact details for completed trades
@@ -259,6 +275,7 @@ export default function TradesPage() {
   const TradeCard = ({ trade, index }: { trade: Trade; index: number }) => {
     const badge = getStatusBadge(trade.status);
     const isUserItem1 = trade.item1?.userId === user?.uid;
+    const isMultiHop = trade.type === 'multi-hop';
 
     return (
       <motion.div
@@ -269,81 +286,152 @@ export default function TradesPage() {
         <GlassCard hover className="group">
           {/* Status Badge */}
           <div className="flex justify-between items-center mb-4">
-            <GradientBadge variant={badge.variant}>
-              {badge.icon} {badge.label}
-            </GradientBadge>
+            <div className="flex items-center gap-2">
+              <GradientBadge variant={badge.variant}>
+                {badge.icon} {badge.label}
+              </GradientBadge>
+              {isMultiHop && (
+                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                  🔄 Multi-hop
+                </span>
+              )}
+            </div>
             <span className="text-sm text-gray-600">
               {trade.createdAt?.toDate().toLocaleDateString()}
             </span>
           </div>
 
           {/* Trade Items */}
-          <div className="space-y-4 mb-4">
-            {/* Your Item */}
-            <div className="space-y-2">
-              <p className="text-xs text-gray-600 font-semibold">
-                {isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
-              </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
-                {trade.item1?.imageUrl ? (
-                  <Image
-                    src={trade.item1.imageUrl}
-                    alt={trade.item1?.name || 'Item'}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
-                    📦
-                  </div>
-                )}
+          {isMultiHop && trade.chainData ? (
+            // Multi-hop Chain Display
+            <div className="mb-4">
+              <div className="bg-purple-50 rounded-xl p-3 mb-3">
+                <p className="text-xs text-purple-700 font-semibold text-center">
+                  {trade.chainData.chainLength}-Way Trade Chain
+                  {trade.chainData.chainFairnessScore && (
+                    <span className="ml-2">| Fairness: {trade.chainData.chainFairnessScore}%</span>
+                  )}
+                </p>
               </div>
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item1?.name || 'Unknown Item'}
-              </p>
-              <p className="text-xs text-gray-700">
-                ${trade.item1?.estimatedValue || 0}
-              </p>
-            </div>
-
-            {/* Arrow */}
-            <div className="flex justify-center">
-              <motion.div
-                animate={{ y: [0, 5, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="text-3xl text-primary"
-              >
-                ⇅
-              </motion.div>
-            </div>
-
-            {/* Their Item */}
-            <div className="space-y-2">
-              <p className="text-xs text-gray-600 font-semibold">
-                {!isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
-              </p>
-              <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
-                {trade.item2?.imageUrl ? (
-                  <Image
-                    src={trade.item2.imageUrl}
-                    alt={trade.item2?.name || 'Item'}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
-                    📦
-                  </div>
-                )}
+              
+              {/* Chain Items */}
+              <div className="space-y-3">
+                {trade.chainData.items?.map((item, idx) => {
+                  const isUserItem = item.userId === user?.uid;
+                  return (
+                    <div key={idx} className="space-y-2">
+                      <p className="text-xs text-gray-600 font-semibold">
+                        {isUserItem ? '🫵 Your Item' : `👤 User ${idx + 1}`}
+                      </p>
+                      <div className="flex gap-3 bg-white/50 rounded-xl p-2">
+                        <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0">
+                          {item.imageUrl ? (
+                            <Image
+                              src={item.imageUrl}
+                              alt={item.name || 'Item'}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-2xl">
+                              📦
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {item.name || 'Unknown Item'}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {item.category || 'N/A'}
+                          </p>
+                          <p className="text-xs text-gray-700 font-medium">
+                            ${item.estimatedValue || 0}
+                          </p>
+                        </div>
+                      </div>
+                      {idx < (trade.chainData?.items?.length || 0) - 1 && (
+                        <div className="flex justify-center">
+                          <div className="text-xl text-purple-500">↓</div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="flex justify-center">
+                  <div className="text-xl text-green-500">↺</div>
+                </div>
               </div>
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {trade.item2?.name || 'Unknown Item'}
-              </p>
-              <p className="text-xs text-gray-700">
-                ${trade.item2?.estimatedValue || 0}
-              </p>
             </div>
-          </div>
+          ) : (
+            // 1-to-1 Trade Display
+            <div className="space-y-4 mb-4">
+              {/* Your Item */}
+              <div className="space-y-2">
+                <p className="text-xs text-gray-600 font-semibold">
+                  {isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
+                </p>
+                <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
+                  {trade.item1?.imageUrl ? (
+                    <Image
+                      src={trade.item1.imageUrl}
+                      alt={trade.item1?.name || 'Item'}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
+                      📦
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {trade.item1?.name || 'Unknown Item'}
+                </p>
+                <p className="text-xs text-gray-700">
+                  ${trade.item1?.estimatedValue || 0}
+                </p>
+              </div>
+
+              {/* Arrow */}
+              <div className="flex justify-center">
+                <motion.div
+                  animate={{ y: [0, 5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="text-3xl text-primary"
+                >
+                  ⇅
+                </motion.div>
+              </div>
+
+              {/* Their Item */}
+              <div className="space-y-2">
+                <p className="text-xs text-gray-600 font-semibold">
+                  {!isUserItem1 ? '🫵 Your Item' : '👤 Their Item'}
+                </p>
+                <div className="relative w-full h-32 rounded-xl overflow-hidden bg-gray-200">
+                  {trade.item2?.imageUrl ? (
+                    <Image
+                      src={trade.item2.imageUrl}
+                      alt={trade.item2?.name || 'Item'}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">
+                      📦
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {trade.item2?.name || 'Unknown Item'}
+                </p>
+                <p className="text-xs text-gray-700">
+                  ${trade.item2?.estimatedValue || 0}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           {trade.status === 'pending' && (
@@ -647,7 +735,7 @@ export default function TradesPage() {
         <TradeResultModal
           isOpen={showResultModal}
           onClose={() => setShowResultModal(false)}
-          success={resultSuccess}
+          type={resultSuccess ? 'success' : 'error'}
           message={resultMessage}
         />
       </div>
