@@ -137,10 +137,10 @@ export default function DashboardPage() {
       gradient: 'from-green-500 to-emerald-500',
     },
     {
-      title: 'Campus Heatmap',
-      description: 'View demand & supply analytics',
-      icon: '🗺️',
-      href: '/heatmap',
+      title: 'Campus Trends',
+      description: 'View trending items & market analytics',
+      icon: '📊',
+      href: '/trends',
       gradient: 'from-pink-500 to-rose-500',
     },
     {
