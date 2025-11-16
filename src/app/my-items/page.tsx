@@ -242,7 +242,7 @@ export default function MyItemsPage() {
                           <div className="text-center">
                             <div className="text-xs text-gray-500 mb-1">Condition</div>
                             <div className="text-lg font-bold text-gray-900">
-                              {item.conditionScore}/10
+                              {item.conditionScore ? (item.conditionScore / 10).toFixed(1) : 'N/A'}
                             </div>
                           </div>
                           <div className="text-center">
@@ -257,7 +257,7 @@ export default function MyItemsPage() {
                         <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-4">
                           <motion.div
                             initial={{ width: 0 }}
-                            animate={{ width: `${(item.conditionScore || 0) * 10}%` }}
+                            animate={{ width: `${item.conditionScore || 0}%` }}
                             transition={{ duration: 1, delay: 0.3 + index * 0.1 }}
                             className="h-full bg-gradient-primary"
                           />

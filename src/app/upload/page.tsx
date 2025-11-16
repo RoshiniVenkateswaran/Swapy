@@ -29,6 +29,15 @@ export default function UploadPage() {
   const [error, setError] = useState('');
   const [aiResult, setAiResult] = useState<any>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
+  
+  // New fields
+  const [condition, setCondition] = useState<number>(0);
+  const [ageValue, setAgeValue] = useState<number>(0);
+  const [ageUnit, setAgeUnit] = useState<'years' | 'months'>('years');
+  const [brand, setBrand] = useState<string>('');
+  const [brandCustom, setBrandCustom] = useState<string>('');
+  
+  const BRANDS = ['Apple', 'Sony', 'Samsung', 'Ikea', 'Nike', 'Adidas', 'Dell', 'HP', 'Lenovo', 'Other'];
 
   const handleFileSelect = (file: File) => {
     setImageFile(file);
@@ -49,7 +58,47 @@ export default function UploadPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!imageFile || !user) return;
+    
+    // Validate all required fields
+    if (!imageFile) {
+      setError('Please upload an image of your item.');
+      return;
+    }
+    
+    if (!user) {
+      setError('Please log in to upload items.');
+      return;
+    }
+    
+    if (!itemName || itemName.trim().length === 0) {
+      setError('Please enter an item name.');
+      return;
+    }
+    
+    if (!description || description.trim().length < 10) {
+      setError('Please provide a detailed description (at least 10 characters) to help us analyze your item. Include features, color, condition, etc.');
+      return;
+    }
+    
+    if (!condition || condition === 0) {
+      setError('Please select the condition of your item.');
+      return;
+    }
+    
+    if (!ageValue || ageValue === 0) {
+      setError('Please enter the age of your item.');
+      return;
+    }
+    
+    if (!brand) {
+      setError('Please select or enter the brand of your item.');
+      return;
+    }
+    
+    if (brand === 'Other' && (!brandCustom || brandCustom.trim().length === 0)) {
+      setError('Please enter the brand name.');
+      return;
+    }
   
     setError('');
     setLoading(true);
@@ -58,30 +107,56 @@ export default function UploadPage() {
       console.log('Starting upload process...');
       
       // 1. Upload image to Firebase Storage
-      const storageRef = ref(storage, `items/${user.uid}/${Date.now()}_${imageFile.name}`);
-      await uploadBytes(storageRef, imageFile);
-      const imageUrl = await getDownloadURL(storageRef);
-      
-      console.log('Image uploaded:', imageUrl);
+      let imageUrl;
+      try {
+        const storageRef = ref(storage, `items/${user.uid}/${Date.now()}_${imageFile.name}`);
+        await uploadBytes(storageRef, imageFile);
+        imageUrl = await getDownloadURL(storageRef);
+        console.log('Image uploaded:', imageUrl);
+      } catch (imageError: any) {
+        console.error('Image upload error:', imageError);
+        throw new Error('Failed to upload image. Please try uploading a clearer picture (JPG or PNG format).');
+      }
   
+      // Determine final brand value
+      const finalBrand = brand === 'Other' ? brandCustom : brand;
+      
       // 2. Call API route to analyze item
       console.log('Calling analyze API...');
-      const response = await fetch('/api/analyze-item', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrl,
-          itemName,
-          description,
-        }),
-      });
+      let response;
+      try {
+        response = await fetch('/api/analyze-item', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl,
+            itemName,
+            description,
+            condition,
+            ageValue,
+            ageUnit,
+            brand: finalBrand,
+          }),
+        });
+      } catch (networkError: any) {
+        console.error('Network error:', networkError);
+        throw new Error('Network error. Please check your internet connection and try again.');
+      }
   
       console.log('API response status:', response.status);
   
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          // If response is not JSON, use default user-friendly message
+          throw new Error('Unable to analyze your item. Please provide more details in the description field.');
+        }
+        
         console.error('API error:', errorData);
-        throw new Error(errorData.error || 'Failed to analyze item');
+        // Use the user-friendly error message from API
+        throw new Error(errorData.error || 'Unable to analyze your item. Please provide more details in the description.');
       }
   
       const analysisResult = await response.json();
@@ -100,6 +175,10 @@ export default function UploadPage() {
         keywords: analysisResult.keywords || [],
         attributes: analysisResult.attributes || {},
         imageUrl,
+        condition,
+        ageValue,
+        ageUnit,
+        brand: finalBrand,
         status: 'available',
         createdAt: Timestamp.now(),
       });
@@ -119,7 +198,10 @@ export default function UploadPage() {
         router.push('/my-items');
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to upload item');
+      // Display the user-friendly error message
+      const errorMessage = err.message || 'Failed to upload item. Please try again.';
+      setError(errorMessage);
+      console.error('Upload error:', err);
     } finally {
       setLoading(false);
     }
@@ -212,9 +294,93 @@ export default function UploadPage() {
                       onChange={(e) => setDescription(e.target.value)}
                       rows={4}
                       className="w-full px-4 py-3 rounded-xl glass text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 resize-none"
-                      placeholder="Describe your item's condition, features, etc."
+                      placeholder="Describe your item's condition, features, brand, color, size, etc. (minimum 10 characters)"
                       required
+                      minLength={10}
                     />
+                  </div>
+
+                  {/* Condition */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Condition *
+                    </label>
+                    <select
+                      value={condition}
+                      onChange={(e) => setCondition(Number(e.target.value))}
+                      className="w-full px-4 py-3 rounded-xl glass text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300"
+                      required
+                    >
+                      <option value={0}>Select condition</option>
+                      <option value={5}>5: Like New</option>
+                      <option value={4}>4: Good</option>
+                      <option value={3}>3: Average</option>
+                      <option value={2}>2: Used</option>
+                      <option value={1}>1: Poor</option>
+                    </select>
+                  </div>
+
+                  {/* Age */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Age of Item *
+                    </label>
+                    <div className="flex gap-3">
+                      <input
+                        type="number"
+                        value={ageValue || ''}
+                        onChange={(e) => setAgeValue(Number(e.target.value))}
+                        min="0"
+                        className="flex-1 px-4 py-3 rounded-xl glass text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300"
+                        placeholder="0"
+                        required
+                      />
+                      <select
+                        value={ageUnit}
+                        onChange={(e) => setAgeUnit(e.target.value as 'years' | 'months')}
+                        className="px-4 py-3 rounded-xl glass text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300"
+                        required
+                      >
+                        <option value="years">years</option>
+                        <option value="months">months</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Brand */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Brand *
+                    </label>
+                    <select
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl glass text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300 mb-3"
+                      required
+                    >
+                      <option value="">Select brand</option>
+                      {BRANDS.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                    {brand === 'Other' && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-3"
+                      >
+                        <input
+                          type="text"
+                          value={brandCustom}
+                          onChange={(e) => setBrandCustom(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl glass text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary transition-all duration-300"
+                          placeholder="Enter brand"
+                          required
+                        />
+                      </motion.div>
+                    )}
                   </div>
 
                   {/* Desired Categories */}
@@ -265,7 +431,17 @@ export default function UploadPage() {
                     variant="primary"
                     size="lg"
                     loading={loading}
-                    disabled={!imageFile || !itemName || !description || loading}
+                    disabled={
+                      !imageFile || 
+                      !itemName || 
+                      !description || 
+                      description.trim().length < 10 ||
+                      condition === 0 || 
+                      ageValue === 0 || 
+                      !brand || 
+                      (brand === 'Other' && !brandCustom) || 
+                      loading
+                    }
                     className="w-full"
                   >
                     {loading ? '🔄 Analyzing with AI...' : '✨ Analyze & Upload'}
